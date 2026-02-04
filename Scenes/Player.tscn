@@ -1,6 +1,6 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=3 format=3 uid="uid://ccix360lkjs6j"]
 
-[ext_resource type="Script" path="res://Scripts/Player.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://jtdvmebkqwjw" path="res://Scripts/Player.gd" id="1_script"]
 
 [sub_resource type="CapsuleShape2D" id="CapsuleShape2D_player"]
 radius = 20.0
@@ -8,18 +8,11 @@ height = 60.0
 
 [node name="Player" type="CharacterBody2D"]
 collision_layer = 2
-collision_mask = 1
 script = ExtResource("1_script")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 position = Vector2(0, -30)
 shape = SubResource("CapsuleShape2D_player")
-
-[node name="ColorRect" type="ColorRect" parent="."]
-offset_left = -20.0
-offset_top = -60.0
-offset_right = 20.0
-color = Color(0.2, 0.6, 1, 1)
 
 [node name="Camera2D" type="Camera2D" parent="."]
 position = Vector2(0, -100)

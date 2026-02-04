@@ -29,9 +29,6 @@ func _ready():
 			GlobalSignalBus.request_social_interaction.connect(_on_social_request)
 		if not GlobalSignalBus.request_summary_merge.is_connected(_on_summary_merge_request):
 			GlobalSignalBus.request_summary_merge.connect(_on_summary_merge_request)
-		if not GlobalSignalBus.request_petition_generation.is_connected(_on_petition_request):
-			GlobalSignalBus.request_petition_generation.connect(_on_petition_request)
-	
 	# Listen for LLM Stream Logic Results
 	if LLMStreamService:
 		if not LLMStreamService.logic_received.is_connected(_on_llm_logic_received):
@@ -191,52 +188,7 @@ func _on_summary_merge_response(payload: Dictionary) -> void:
 	if LLMStreamService.logic_received.is_connected(_on_summary_merge_response):
 		LLMStreamService.logic_received.disconnect(_on_summary_merge_response)
 
-# Petition Generation System
-var pending_petition: Dictionary = {}
 
-func _on_petition_request(npc_soul: Node, prompt: String) -> void:
-	print("[LLMController] ===== PETITION REQUEST RECEIVED =====")
-	print("[LLMController] NPC: %s" % npc_soul.personality.name)
-	print("[LLMController] Prompt length: %d" % prompt.length())
-	
-	if pending_petition.size() > 0:
-		print("[LLMController] Petition request already in progress. Dropping.")
-		return
-	
-	print("[LLMController] Processing petition request for %s" % npc_soul.personality.name)
-	pending_petition = {"npc_soul": npc_soul}
-	
-	print("[LLMController] Calling LLMStreamService.request_inference()...")
-	print("[LLMController] System: 'You are a quest generator for a medieval strategy game.'")
-	print("[LLMController] Mode: LOGIC")
-	
-	# Use LOGIC mode for JSON response
-	LLMStreamService.request_inference("You are a quest generator for a medieval strategy game.", prompt, "LOGIC")
-	
-	print("[LLMController] Request sent to LLMStreamService")
-	
-	# Connect to response
-	if not LLMStreamService.logic_received.is_connected(_on_petition_response):
-		LLMStreamService.logic_received.connect(_on_petition_response)
-		print("[LLMController] Connected to logic_received signal")
-
-func _on_petition_response(payload: Dictionary) -> void:
-	print("[LLMController] Petition response received: ", payload)
-	
-	if pending_petition.is_empty():
-		print("[LLMController] WARNING: No pending petition!")
-		return
-	
-	var npc_soul = pending_petition["npc_soul"]
-	
-	if is_instance_valid(npc_soul) and PetitionManager:
-		PetitionManager.on_petition_received(npc_soul, payload)
-	
-	pending_petition.clear()
-	
-	# Disconnect
-	if LLMStreamService.logic_received.is_connected(_on_petition_response):
-		LLMStreamService.logic_received.disconnect(_on_petition_response)
 
 func generate_text(prompt: String):
 	if is_processing_request:

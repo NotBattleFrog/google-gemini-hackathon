@@ -3,6 +3,9 @@ extends CharacterBody2D
 
 enum State { IDLE, WORK, COMBAT, MUTINY, RETREAT, SOCIALIZING }
 
+# Signals
+signal dialogue_completed()
+
 # Config
 @export var speed: float = 50.0
 @export var faction: String = "FRIENDLY" # Default to Friendly for Garrison test
@@ -24,8 +27,7 @@ func _ready() -> void:
 		add_child(soul)
 	
 	# Initialize basic behavior
-	# For Garrison test, let them wander randomly nearby
-	velocity.x = randf_range(-20, 20)
+	# Static - do nothing
 	
 	# Create Social Detection Area
 	var area = Area2D.new()
@@ -61,18 +63,18 @@ func _exit_tree() -> void:
 	conversation_partner = null
 
 var hp: float = 3.0
-var cooldown_label: Label
+var name_label: Label
 
 var _last_debug_state: int = -1
 var _last_neighbor_count: int = -1
 
 func _setup_cooldown_label() -> void:
-	cooldown_label = Label.new()
-	cooldown_label.position = Vector2(-20, -85) # Above bubble
-	cooldown_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	cooldown_label.add_theme_color_override("font_color", Color.YELLOW)
-	cooldown_label.add_theme_font_size_override("font_size", 12)
-	add_child(cooldown_label)
+	name_label = Label.new()
+	name_label.position = Vector2(-30, -85) # Above bubble
+	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_label.add_theme_color_override("font_color", Color.WHITE)
+	name_label.add_theme_font_size_override("font_size", 14)
+	add_child(name_label)
 
 func take_damage(amount: float) -> void:
 	hp -= amount
@@ -106,14 +108,9 @@ func _physics_process(delta: float) -> void:
 		
 	match current_state:
 		State.IDLE:
-			velocity.y += 980 * delta # Gravity
-			
-			# Improved Wander: Randomly switch between moving and stopping
-			if randf() < 0.02: # 2% chance to change plan
-				if randf() < 0.5:
-					velocity.x = 0 # Stop
-				else:
-					velocity.x = randf_range(-30, 30) # Walk
+			# STATIC MODE: No movement
+			velocity.x = 0
+			velocity.y += 980 * delta # Gravity ensures they stay on floor
 			
 			move_and_slide()
 			
@@ -209,6 +206,10 @@ func start_dialogue_routine(dialogue_list: Array) -> void:
 	if conversation_partner:
 		conversation_partner.enter_state(State.IDLE)
 		conversation_partner = null
+	
+	# Notify MysteryManager that dialogue is done
+	dialogue_completed.emit()
+	print("[Unit] Dialogue sequence completed, signal emitted")
 
 # Eavesdropping System
 func notify_eavesdroppers(partner: Unit, dialogue_summary: String) -> void:
@@ -228,17 +229,11 @@ func notify_eavesdroppers(partner: Unit, dialogue_summary: String) -> void:
 			print("[Unit] -> %s overheard the conversation" % nearby.name)
 
 func update_debug_label() -> void:
-	var state_str = State.keys()[current_state]
-	var debug_text = "%s\nN: %d" % [state_str, _last_neighbor_count]
-	
-	if soul and not soul.can_socialize():
-		debug_text += "\nCD"
-		cooldown_label.add_theme_color_override("font_color", Color.YELLOW)
+	if soul and soul.personality:
+		name_label.text = soul.personality.get("name", "Unknown")
 	else:
-		cooldown_label.add_theme_color_override("font_color", Color.WHITE)
-	
-	cooldown_label.text = debug_text
-	cooldown_label.visible = true
+		name_label.text = "Unit"
+	name_label.visible = true
 
 func enter_state(new_state: State) -> void:
 	current_state = new_state

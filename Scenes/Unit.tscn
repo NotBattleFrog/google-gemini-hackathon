@@ -1,0 +1,33 @@
+[gd_scene load_steps=4 format=3 uid="uid://b7rey8q8jpleq"]
+
+[ext_resource type="Script" uid="uid://bmjrum5kgl0es" path="res://Scripts/Units/Unit.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://qsjj8t0ihvsg" path="res://Scripts/Components/Soul.gd" id="2_soul"]
+
+[sub_resource type="CapsuleShape2D" id="CapsuleShape2D_1"]
+radius = 20.0
+height = 80.0
+
+[node name="Unit" type="CharacterBody2D" groups=["Units"]]
+script = ExtResource("1_script")
+
+[node name="Soul" type="Node" parent="."]
+script = ExtResource("2_soul")
+
+[node name="Visuals" type="Node2D" parent="."]
+
+[node name="Body" type="ColorRect" parent="Visuals"]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -20.0
+offset_top = -40.0
+offset_right = 20.0
+offset_bottom = 40.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.7, 0.7, 0.7, 1)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CapsuleShape2D_1")

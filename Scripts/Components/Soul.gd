@@ -67,9 +67,13 @@ func _randomize_persona() -> void:
 	personality.name = personality.archetype + " " + str(randi() % 100) # Unique ID
 
 func can_socialize() -> bool:
+	# Don't socialize during battle
+	var battle_manager = get_node_or_null("/root/Game/BattleManager")
+	if battle_manager and battle_manager.is_in_battle():
+		return false
 	return cooldown_timer.is_stopped()
 
-func initiate_social_interaction(other_soul: SoulComponent) -> void:
+func initiate_social_interaction(other_soul: SoulComponent, extra_context: String = "") -> void:
 	if not can_socialize() or not other_soul.can_socialize():
 		return
 	
@@ -107,7 +111,7 @@ func initiate_social_interaction(other_soul: SoulComponent) -> void:
 	print("Soul %s initiating chat with %s" % [personality.name, other_soul.personality.name])
 	
 	# Construct the LLM Request
-	var prompt = _construct_social_prompt(other_soul)
+	var prompt = _construct_social_prompt(other_soul, extra_context)
 	
 	# In a real async system, we'd need a way to route the SPECIFIC response back to THIS soul.
 	# For this prototype, we will use a global signal with an ID or just hijack the main service for a moment.
@@ -116,7 +120,7 @@ func initiate_social_interaction(other_soul: SoulComponent) -> void:
 	
 	GlobalSignalBus.request_social_interaction.emit(self, other_soul, prompt)
 
-func _construct_social_prompt(other: SoulComponent) -> String:
+func _construct_social_prompt(other: SoulComponent, extra_context: String = "") -> String:
 	var my_desc = "%s (%s). Traits: %s. Recent Memory: %s" % [personality.name, personality.archetype, ", ".join(personality.traits), memories.back() if not memories.is_empty() else "None"]
 	var their_desc = "%s (%s). Traits: %s." % [other.personality.name, other.personality.archetype, ", ".join(other.personality.traits)]
 	
@@ -132,11 +136,43 @@ func _construct_social_prompt(other: SoulComponent) -> String:
 	if their_relationship:
 		their_context = "\nRelationship history with %s: %s" % [personality.name, their_relationship]
 	
+	# Assuming 'their_rumors' is a variable that would be defined elsewhere or passed in.
+	# For now, I'll define it as an empty array to make the code syntactically correct.
+	var their_rumors: Array[String] = [] # Placeholder for their rumors
+	var rumor_context = ""
+	if not their_rumors.is_empty():
+		rumor_context += "\n%s recently talked about: %s" % [other.personality.name, "; ".join(their_rumors)]
+		
+	# Add Ghost Message / Context Override
+	# NEW CONTEXT: The Dynamic Duo Twist
+	var final_context = "MURDER MYSTERY SIMULATION. Player is Somchai (Ghost). Detective is UNIT-7 (AI)."
+	final_context += "\nSCENARIO: Somchai was murdered by a Neural Link overload. Suspects were emotionally manipulated."
+	
+	# INJECT DEEP MIND
+	var my_role = personality.get("role", "Suspect")
+	var my_secret = personality.get("secret", "")
+	var my_conflict = personality.get("conflict", "")
+	
+	if not my_secret.is_empty():
+		final_context += "\n\n[YOUR HIDDEN TRUTH]"
+		final_context += "\nSECRET GOAL: %s" % my_secret
+		final_context += "\nWEAPONIZED EMOTION: %s" % personality.get("state", "Neutral") # We stored emotion in 'state'
+		final_context += "\nINNER CONFLICT: %s" % my_conflict
+		
+		# Context specific instructions
+		if my_role == "Detective":
+			final_context += "\nSPECIAL INSTRUCTION: You are an AI. You believe you are innocent, but you are actually the killer (Memory Erased). Focus on logic."
+		else:
+			final_context += "\nINSTRUCTION: You are driven by your Weaponized Emotion. Hide your Secret Goal. You suspect the others."
+	
+	if not extra_context.is_empty():
+		final_context += "\n\n[GHOSTLY WHISPER]\n" + extra_context
+	
 	return """
     Generate a short 2-line dialogue between these two characters.
     Character A: %s%s
     Character B: %s%s
-    Context: Approaching Storm from the East.
+    Context: %s
     
     Output JSON ONLY:
     {
@@ -152,7 +188,7 @@ func _construct_social_prompt(other: SoulComponent) -> String:
             "new_trait_A": "Inspired"
         }
     }
-	""" % [my_desc, my_context, their_desc, their_context]
+	""" % [my_desc, my_context, their_desc, their_context, final_context]
 
 func apply_interaction_result(result: Dictionary, other_soul: SoulComponent) -> void:
 	# Called by the manager when LLM returns JSON
@@ -270,7 +306,7 @@ func load_conversations() -> void:
 		var file = FileAccess.open(file_path, FileAccess.READ)
 		if file:
 			var json = JSON.new()
-			if json.parse(file.get_string()) == OK:
+			if json.parse(file.get_as_text()) == OK:
 				if typeof(json.data) == TYPE_DICTIONARY:
 					relationship_summaries = json.data
 					print("[Soul] Loaded %d relationship summaries for %s" % [relationship_summaries.size(), personality.name])

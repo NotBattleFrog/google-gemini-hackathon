@@ -1,8 +1,8 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=4 format=3 uid="uid://85uyw4254msp"]
 
-[ext_resource type="Script" path="res://Scripts/World/Lamp.gd" id="1_script"]
-[ext_resource type="Texture2D" path="res://Assets/Textures/light_gradient.tres" id="2_light"]
-[ext_resource type="Texture2D" path="res://Assets/Textures/medieval_lantern.jpg" id="3_sprite"]
+[ext_resource type="Script" uid="uid://bfkqi4oalvuwq" path="res://Scripts/World/Lamp.gd" id="1_script"]
+[ext_resource type="Texture2D" uid="uid://b8j5x2q3d4e5" path="res://Assets/Textures/light_gradient.tres" id="2_light"]
+[ext_resource type="Texture2D" uid="uid://b7d51ovbilef6" path="res://Assets/Textures/medieval_lantern.jpg" id="3_sprite"]
 
 [node name="Lamp" type="Node2D"]
 script = ExtResource("1_script")
@@ -14,8 +14,8 @@ offset = Vector2(0, -32)
 
 [node name="PointLight2D" type="PointLight2D" parent="."]
 position = Vector2(0, -16)
-texture = ExtResource("2_light")
-texture_scale = 2.0
 color = Color(1, 0.7, 0.4, 1)
 energy = 1.2
 shadow_enabled = true
+texture = ExtResource("2_light")
+texture_scale = 2.0
