@@ -1,0 +1,307 @@
+extends Node
+
+# Signals (Local, can be connected to Global if needed, or we emit Global directly)
+signal text_generated(response_text)
+signal image_generated(image_texture)
+signal error_occurred(error_message)
+
+# Status signals
+signal request_started
+signal request_finished
+
+var model_name: String = "gemini-2.5-flash"
+var is_processing_request: bool = false
+
+
+@onready var http_request_text = HTTPRequest.new()
+# @onready var http_request_image = HTTPRequest.new() # Uncomment if we use image gen
+
+func _ready():
+	# Important: LLMController must run when game is paused (for Dialogue)
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	
+	add_child(http_request_text)
+	http_request_text.request_completed.connect(_on_text_request_completed)
+
+	# Listen for Social Requests
+	if GlobalSignalBus:
+		if not GlobalSignalBus.request_social_interaction.is_connected(_on_social_request):
+			GlobalSignalBus.request_social_interaction.connect(_on_social_request)
+		if not GlobalSignalBus.request_summary_merge.is_connected(_on_summary_merge_request):
+			GlobalSignalBus.request_summary_merge.connect(_on_summary_merge_request)
+		if not GlobalSignalBus.request_petition_generation.is_connected(_on_petition_request):
+			GlobalSignalBus.request_petition_generation.connect(_on_petition_request)
+	
+	# Listen for LLM Stream Logic Results
+	if LLMStreamService:
+		if not LLMStreamService.logic_received.is_connected(_on_llm_logic_received):
+			LLMStreamService.logic_received.connect(_on_llm_logic_received)
+		# Fallback if logic comes as text (likely with 2.5-flash)
+		if not LLMStreamService.response_complete.is_connected(_on_llm_response_complete):
+			LLMStreamService.response_complete.connect(_on_llm_response_complete)
+
+var pending_social_interaction: Dictionary = {}
+
+func _on_social_request(soul_a: Node, soul_b: Node, prompt: String) -> void:
+	if pending_social_interaction.size() > 0:
+		print("LLMController: Social bus busy. Dropping request.")
+		return
+		
+	print("LLMController: Processing social request for %s and %s" % [soul_a.name, soul_b.name])
+	pending_social_interaction = {"soul_a": soul_a, "soul_b": soul_b}
+	
+	# Identify as LOGIC mode
+	LLMStreamService.request_inference("You are a Game Master simulation engine.", prompt, "LOGIC")
+
+func _on_llm_logic_received(payload: Dictionary) -> void:
+	print("[LLMController] _on_llm_logic_received called with payload: ", payload)
+	_handle_social_result(payload)
+
+func _on_llm_response_complete(full_text: String) -> void:
+	print("[LLMController] _on_llm_response_complete called")
+	# If we are expecting a social result but got text (maybe JSON embedded in text)
+	if pending_social_interaction.size() > 0:
+		# Try to parse JSON from text
+		var json = JSON.new()
+		var err = json.parse(full_text)
+		if err == OK:
+			_handle_social_result(json.data)
+		else:
+			# Try to find JSON block ```json ... ```
+			var start = full_text.find("{")
+			var end = full_text.rfind("}")
+			if start != -1 and end != -1:
+				var json_sub = full_text.substr(start, end - start + 1)
+				if json.parse(json_sub) == OK:
+					_handle_social_result(json.data)
+				else:
+					print("LLMController: Failed to parse social JSON.")
+					pending_social_interaction.clear()
+			else:
+				print("LLMController: No JSON parsing possible.")
+				pending_social_interaction.clear()
+
+func _handle_social_result(data: Dictionary) -> void:
+	print("[LLMController] _handle_social_result called")
+	if pending_social_interaction.is_empty(): 
+		print("[LLMController] WARNING: No pending interaction!")
+		return
+	
+	var soul_a = pending_social_interaction["soul_a"]
+	var soul_b = pending_social_interaction["soul_b"]
+	
+	# Safety check for freed nodes
+	if not is_instance_valid(soul_a):
+		print("[LLMController] ERROR: soul_a was freed!")
+		pending_social_interaction.clear()
+		return
+	
+	if not is_instance_valid(soul_b):
+		print("[LLMController] ERROR: soul_b was freed!")
+		pending_social_interaction.clear()
+		return
+	
+	print("[LLMController] Applying result to souls: ", soul_a.name, " and ", soul_b.name)
+	
+	soul_a.apply_interaction_result(data, soul_b)
+	
+	pending_social_interaction.clear()
+
+# Wrapper to maintain compatibility with GameUI
+func send_prompt(user_input: String, npc_persona: String) -> void:
+	if is_processing_request:
+		push_warning("Request already in progress. Ignoring.")
+		return
+
+	if ConfigManager.api_key.is_empty():
+		push_error("Cannot send prompt: API Key is missing.")
+		GlobalSignalBus.response_received.emit("Error: No API Key set.")
+		return
+
+	# Construct prompt based on difficulty or other game state
+	var difficulty_context = ""
+	match SaveManager.current_state.get("difficulty_level", 1):
+		0: difficulty_context = "You are a cowardly General. You accept low bribes and retreat easily."
+		2: difficulty_context = "You are a ruthless Warlord. You are insulted by bribes and demand total surrender."
+		_: difficulty_context = "You are a pragmatic General. You will negotiate if the offer is fair."
+		
+	# We combine role/context into a system instruction style or just prepended context
+	# Gemini 1.5/2.5 often takes system instructions in 'system_instruction' field or just in the prompt.
+	# The user example used 'chats' history. Let's do a simple single turn for now.
+	
+	var system_instruction = "Role: %s\nContext: %s" % [npc_persona, difficulty_context]
+	var full_prompt = system_instruction + "\nPlayer says: '" + user_input + "'"
+	
+	generate_text(full_prompt)
+
+# Chronicle generation wrapper
+func generate_chronicle_text(prompt: String) -> void:
+	print("[LLMController] Generating chronicle...")
+	# Use LOGIC mode for structured JSON response
+	LLMStreamService.request_inference("You are a Royal Historian.", prompt, "LOGIC")
+	
+	# Connect to response (one-time)
+	if not LLMStreamService.logic_received.is_connected(_on_chronicle_logic_received):
+		LLMStreamService.logic_received.connect(_on_chronicle_logic_received)
+
+func _on_chronicle_logic_received(payload: Dictionary) -> void:
+	print("[LLMController] Chronicle logic received: ", payload)
+	GlobalSignalBus.chronicle_generated.emit(payload)
+	
+	# Disconnect after use
+	if LLMStreamService.logic_received.is_connected(_on_chronicle_logic_received):
+		LLMStreamService.logic_received.disconnect(_on_chronicle_logic_received)
+
+# Summary Merge System
+var pending_summary_merge: Dictionary = {}
+
+func _on_summary_merge_request(soul: Node, partner_name: String, prompt: String) -> void:
+	if pending_summary_merge.size() > 0:
+		print("[LLMController] Summary merge already in progress. Dropping request.")
+		return
+	
+	print("[LLMController] Processing summary merge request for %s with %s" % [soul.personality.name, partner_name])
+	pending_summary_merge = {"soul": soul, "partner_name": partner_name}
+	
+	# Use LOGIC mode for JSON response
+	LLMStreamService.request_inference("You are a relationship summarizer.", prompt, "LOGIC")
+	
+	# Connect to response (one-time)
+	if not LLMStreamService.logic_received.is_connected(_on_summary_merge_response):
+		LLMStreamService.logic_received.connect(_on_summary_merge_response)
+
+func _on_summary_merge_response(payload: Dictionary) -> void:
+	print("[LLMController] Summary merge response received: ", payload)
+	
+	if pending_summary_merge.is_empty():
+		print("[LLMController] WARNING: No pending summary merge!")
+		return
+	
+	var soul = pending_summary_merge["soul"]
+	var partner_name = pending_summary_merge["partner_name"]
+	
+	var merged_summary = payload.get("summary", "Had a conversation")
+	
+	if is_instance_valid(soul):
+		soul._on_summary_merged(partner_name, merged_summary)
+	
+	pending_summary_merge.clear()
+	
+	# Disconnect
+	if LLMStreamService.logic_received.is_connected(_on_summary_merge_response):
+		LLMStreamService.logic_received.disconnect(_on_summary_merge_response)
+
+# Petition Generation System
+var pending_petition: Dictionary = {}
+
+func _on_petition_request(npc_soul: Node, prompt: String) -> void:
+	print("[LLMController] ===== PETITION REQUEST RECEIVED =====")
+	print("[LLMController] NPC: %s" % npc_soul.personality.name)
+	print("[LLMController] Prompt length: %d" % prompt.length())
+	
+	if pending_petition.size() > 0:
+		print("[LLMController] Petition request already in progress. Dropping.")
+		return
+	
+	print("[LLMController] Processing petition request for %s" % npc_soul.personality.name)
+	pending_petition = {"npc_soul": npc_soul}
+	
+	print("[LLMController] Calling LLMStreamService.request_inference()...")
+	print("[LLMController] System: 'You are a quest generator for a medieval strategy game.'")
+	print("[LLMController] Mode: LOGIC")
+	
+	# Use LOGIC mode for JSON response
+	LLMStreamService.request_inference("You are a quest generator for a medieval strategy game.", prompt, "LOGIC")
+	
+	print("[LLMController] Request sent to LLMStreamService")
+	
+	# Connect to response
+	if not LLMStreamService.logic_received.is_connected(_on_petition_response):
+		LLMStreamService.logic_received.connect(_on_petition_response)
+		print("[LLMController] Connected to logic_received signal")
+
+func _on_petition_response(payload: Dictionary) -> void:
+	print("[LLMController] Petition response received: ", payload)
+	
+	if pending_petition.is_empty():
+		print("[LLMController] WARNING: No pending petition!")
+		return
+	
+	var npc_soul = pending_petition["npc_soul"]
+	
+	if is_instance_valid(npc_soul) and PetitionManager:
+		PetitionManager.on_petition_received(npc_soul, payload)
+	
+	pending_petition.clear()
+	
+	# Disconnect
+	if LLMStreamService.logic_received.is_connected(_on_petition_response):
+		LLMStreamService.logic_received.disconnect(_on_petition_response)
+
+func generate_text(prompt: String):
+	if is_processing_request:
+		return
+
+	var api_key = ConfigManager.api_key
+	if api_key.is_empty():
+		emit_signal("error_occurred", "API Key missing")
+		return
+
+	is_processing_request = true
+	emit_signal("request_started")
+	# GlobalSignalBus.response_received.emit("...Thinking...") # Removed: This was unlocking UI too early
+
+	var url = "https://generativelanguage.googleapis.com/v1beta/models/" + model_name + ":generateContent?key=" + api_key
+	var headers = ["Content-Type: application/json"]
+	
+	# Structure for 'contents'
+	var body_structure = {
+		"contents": [{
+			"parts": [{"text": prompt}]
+		}]
+	}
+	
+	var body = JSON.stringify(body_structure)
+	
+	print("Sending text request to Gemini...")
+	var error = http_request_text.request(url, headers, HTTPClient.METHOD_POST, body)
+	if error != OK:
+		is_processing_request = false
+		emit_signal("request_finished")
+		emit_signal("error_occurred", "Failed to create HTTP request")
+		GlobalSignalBus.response_received.emit("Error: Connection Failed.")
+
+func _on_text_request_completed(result, response_code, headers, body):
+	is_processing_request = false
+	emit_signal("request_finished")
+	
+	if response_code != 200:
+		var response_str = body.get_string_from_utf8()
+		print("API Error: ", response_code, " ", response_str)
+		var err_msg = "API Error: " + str(response_code)
+		emit_signal("error_occurred", err_msg)
+		GlobalSignalBus.response_received.emit(err_msg)
+		return
+
+	var json = JSON.new()
+	var parse_err = json.parse(body.get_string_from_utf8())
+	if parse_err == OK:
+		var response = json.data
+		if "candidates" in response and response.candidates.size() > 0:
+			var content = response.candidates[0].content
+			var text = ""
+			if "parts" in content:
+				for part in content.parts:
+					if "text" in part:
+						text += part.text
+			
+			# Success!
+			print("Gemini Response: ", text)
+			emit_signal("text_generated", text)
+			GlobalSignalBus.response_received.emit(text)
+		else:
+			emit_signal("error_occurred", "No candidates in response")
+			GlobalSignalBus.response_received.emit("Error: No candidates.")
+	else:
+		emit_signal("error_occurred", "Failed to parse JSON response")
+		GlobalSignalBus.response_received.emit("Error: Bad JSON.")

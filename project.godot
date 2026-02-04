@@ -1,0 +1,38 @@
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
+config_version=5
+
+[application]
+
+config/name="The Middle Kingdom"
+run/main_scene="res://Scenes/MainMenu.tscn"
+config/features=PackedStringArray("4.5", "Forward Plus")
+config/icon="res://icon.svg"
+
+[autoload]
+
+GlobalSignalBus="*res://Scripts/Managers/GlobalSignalBus.gd"
+ConfigManager="*res://Scripts/Managers/ConfigManager.gd"
+SaveManager="*res://Scripts/Managers/SaveManager.gd"
+LLMController="*res://Scripts/Managers/LLMController.gd"
+LLMStreamService="*res://Scripts/Services/LLMStreamService.gd"
+LoreManager="*res://Scripts/Managers/LoreManager.gd"
+WaveManager="*res://Scripts/Managers/WaveManager.gd"
+EconomyManager="*res://Scripts/Managers/EconomyManager.gd"
+AudioManager="*res://Scripts/Managers/AudioManager.gd"
+GameStateTracker="*res://Scripts/Managers/GameStateTracker.gd"
+PetitionManager="*res://Scripts/Managers/PetitionManager.gd"
+
+[input]
+
+toggle_journal={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":0,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"pressed":false,"keycode":0,"physical_keycode":74,"key_label":0,"unicode":0,"location":0,"echo":false,"script":null)
+]
+}
