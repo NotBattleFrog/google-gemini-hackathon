@@ -23,8 +23,6 @@ signal petition_accepted(quest: Resource)
 signal petition_rejected(quest: Resource)
 signal day_changed(day: int)
 
-signal gold_changed(new_amount: int)
-
 # Persistence Signals
 signal request_save
 signal request_load

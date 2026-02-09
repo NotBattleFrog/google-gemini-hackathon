@@ -200,19 +200,15 @@ google-gemini-hackathon/
 The following singletons are loaded automatically:
 - `GlobalSignalBus`: Event system
 - `ConfigManager`: Configuration storage
-- `SaveManager`: Game state persistence
 - `LLMController`: LLM request coordinator
 - `LLMStreamService`: API communication
 - `LoreManager`: Event tracking
-- `WaveManager`: Wave system (legacy)
-- `EconomyManager`: Resource management
 - `AudioManager`: Sound system
 - `GameStateTracker`: State tracking
 - `PetitionManager`: Petition system (legacy)
 
 ### State Management
 
-- Game state is stored in `SaveManager.current_state`
 - Conversation summaries are saved to `user://npc_conversations/`
 - API key is stored in `user://settings.cfg`
 

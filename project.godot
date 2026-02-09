@@ -19,11 +19,9 @@ config/icon="res://icon.svg"
 
 GlobalSignalBus="*res://Scripts/Managers/GlobalSignalBus.gd"
 ConfigManager="*res://Scripts/Managers/ConfigManager.gd"
-SaveManager="*res://Scripts/Managers/SaveManager.gd"
 LLMController="*res://Scripts/Managers/LLMController.gd"
 LLMStreamService="*res://Scripts/Services/LLMStreamService.gd"
 LoreManager="*res://Scripts/Managers/LoreManager.gd"
-EconomyManager="*res://Scripts/Managers/EconomyManager.gd"
 AudioManager="*res://Scripts/Managers/AudioManager.gd"
 
 [display]

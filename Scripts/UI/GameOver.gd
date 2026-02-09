@@ -20,18 +20,5 @@ func _display_chronicle() -> void:
             
     chronicle_label.text = text
 
-func _on_restart_button_pressed() -> void:
-    # Reset Game State (Simplification)
-    SaveManager.current_state["castle_hp"] = 100
-    SaveManager.current_state["wave_number"] = 1
-    SaveManager.current_state["gold"] = 50
-    LoreManager.chronicle_log.clear() # Clear lore for new run? Or keep persistence?
-    # Roguelite often keeps it. Let's keep it for "Legacy" feel, or clear if it's "This Run"
-    # User spec said "Summarizing the reign", implies just this run usually, but LoreManager is "Legacy".
-    # Let's keep it but maybe add a separator?
-    LoreManager.add_event("--- NEW REIGN BEGAN ---")
-    
-    get_tree().change_scene_to_file("res://Scenes/Game.tscn")
-
 func _on_main_menu_button_pressed() -> void:
     get_tree().change_scene_to_file("res://Scenes/MainMenu.tscn")

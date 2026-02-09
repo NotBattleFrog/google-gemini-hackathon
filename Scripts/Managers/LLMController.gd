@@ -107,33 +107,6 @@ func _handle_social_result(data: Dictionary) -> void:
 	
 	pending_social_interaction.clear()
 
-# Wrapper to maintain compatibility with GameUI
-func send_prompt(user_input: String, npc_persona: String) -> void:
-	if is_processing_request:
-		push_warning("Request already in progress. Ignoring.")
-		return
-
-	if ConfigManager.api_key.is_empty():
-		push_error("Cannot send prompt: API Key is missing.")
-		GlobalSignalBus.response_received.emit("Error: No API Key set.")
-		return
-
-	# Construct prompt based on difficulty or other game state
-	var difficulty_context = ""
-	match SaveManager.current_state.get("difficulty_level", 1):
-		0: difficulty_context = "You are a cowardly General. You accept low bribes and retreat easily."
-		2: difficulty_context = "You are a ruthless Warlord. You are insulted by bribes and demand total surrender."
-		_: difficulty_context = "You are a pragmatic General. You will negotiate if the offer is fair."
-		
-	# We combine role/context into a system instruction style or just prepended context
-	# Gemini 1.5/2.5 often takes system instructions in 'system_instruction' field or just in the prompt.
-	# The user example used 'chats' history. Let's do a simple single turn for now.
-	
-	var system_instruction = "Role: %s\nContext: %s" % [npc_persona, difficulty_context]
-	var full_prompt = system_instruction + "\nPlayer says: '" + user_input + "'"
-	
-	generate_text(full_prompt)
-
 func _on_chronicle_logic_received(payload: Dictionary) -> void:
 	print("[LLMController] Chronicle logic received: ", payload)
 	GlobalSignalBus.chronicle_generated.emit(payload)

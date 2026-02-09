@@ -21,8 +21,6 @@ func _ready() -> void:
 		return # Don't spawn anything in preview
 
 	# Reset State
-	SaveManager.current_state["castle_hp"] = 100
-	SaveManager.current_state["wave_number"] = 1
 	GlobalSignalBus.game_started.emit()
 	
 	# Spawn Vagrant (Tutorial) - Disabled for Quota/Social Test
@@ -84,6 +82,12 @@ func _ready() -> void:
 	
 	# Spawn NPCs for Mystery (Static positions)
 	_spawn_mystery_npcs()
+	
+	# Add GameUI for HUD and API key panel (press K to open)
+	var game_ui_scene = preload("res://Scenes/GameUI.tscn")
+	var game_ui = game_ui_scene.instantiate()
+	add_child(game_ui)
+	print("[Game] GameUI loaded - Press K to open API Key settings")
 	
 	print("[Game] Murder Mystery Mode Initialized")
 
