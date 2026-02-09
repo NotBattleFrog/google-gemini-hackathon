@@ -34,10 +34,12 @@ func _ready() -> void:
 	# OLD SPAWNS REMOVED
 
 	# Visuals: Add WorldEnvironment for Glow
-	# Change player color to Ghostly Blue/White
-	var player = find_child("Player", true, false)
-	if player:
-		player.modulate = Color(1.0, 1.0, 1.0, 0.8) # White Ghost
+	# Player will be spawned with other characters in _spawn_mystery_npcs()
+
+# Player is now spawned in _spawn_mystery_npcs() along with other characters
+	
+	# Setup camera for proper viewing
+	_setup_camera()
 		
 		
 	var env = WorldEnvironment.new()
@@ -54,13 +56,7 @@ func _ready() -> void:
 	# background Elements
 	_setup_atmosphere()
   
-	# Lamps
-	var lamp_scene = preload("res://Scenes/World/Lamp.tscn")
-	var lamp_positions = [Vector2(-150, -60), Vector2(150, -60), Vector2(-400, -60), Vector2(400, -60)]
-	for pos in lamp_positions:
-		var lamp = lamp_scene.instantiate()
-		lamp.position = pos
-		add_child(lamp)
+	# Lamps removed - not needed for mystery scene
 	
 	# Add Journal UI - REMOVED for Mystery
 	# var journal_scene = preload("res://Scenes/UI/Journal.tscn")
@@ -68,16 +64,20 @@ func _ready() -> void:
 	
 	# --- MURDER MYSTERY SETUP ---
 	
-	# Add Mystery Manager
-	var mystery_manager_script = load("res://Scripts/Managers/MysteryManager.gd")
-	var mystery_manager = mystery_manager_script.new()
-	mystery_manager.name = "MysteryManager"
-	add_child(mystery_manager)
+	# Add Turn-Based Game State Manager
+	var turn_based_state_script = load("res://Scripts/Managers/TurnBasedGameState.gd")
+	var turn_based_state = turn_based_state_script.new()
+	turn_based_state.name = "TurnBasedGameState"
+	add_child(turn_based_state)
 	
-	# Add Ghost UI
-	var ghost_ui_scene = preload("res://Scenes/UI/GhostUI.tscn")
-	var ghost_ui = ghost_ui_scene.instantiate()
-	add_child(ghost_ui)
+	# Connect turn action completed signal
+	if not GlobalSignalBus.turn_action_completed.is_connected(turn_based_state.on_character_action_completed):
+		GlobalSignalBus.turn_action_completed.connect(turn_based_state.on_character_action_completed)
+	
+	# Add Ghost Action Input UI
+	var ghost_action_ui_scene = preload("res://Scenes/UI/GhostActionInput.tscn")
+	var ghost_action_ui = ghost_action_ui_scene.instantiate()
+	add_child(ghost_action_ui)
 	
 	# Setup Atmosphere (House/Indoor)
 	_setup_atmosphere()
@@ -94,106 +94,224 @@ func _spawn_mystery_npcs() -> void:
 	
 	await get_tree().process_frame
 	
+	# Setup ground collision at the floor level (where characters should stand)
+	_setup_ground_collision()
+	
 	var unit_scene = load("res://Scenes/Unit.tscn")
 	
-	# Detective (Center)
-	var detective = unit_scene.instantiate()
-	# Suspects (Line up)
-	# Detective is at 0
-	var positions = [Vector2(-120, 0), Vector2(120, 0), Vector2(240, 0)] # Specific slots
-	# Better: Detective at -60? 
-	# Let's do: Suspect 1 (-150), Detective (-50), Suspect 2 (50), Suspect 3 (150)
+	# Position characters on the floor/platform area
+	# Y position should match the ground collision
+	# In Godot, Y increases downward, so positive Y is lower on screen
+	# The room background floor should be visible around Y=280-300
+	var floor_y = 280  # Floor level - moved down to be on visible floor
 	
-	detective.position = Vector2(-50, 0)
-	detective.modulate = Color(0.8, 0.8, 0.9) # Silver/Chrome AI
+	# Spawn Player (Somchai) first - same way as NPCs, no special handling needed
+	var player = unit_scene.instantiate()
+	player.position = Vector2(-150, floor_y)  # Left side
+	add_child(player)
+	player.add_to_group("Units")
+	player.add_to_group("Player")  # Also add to Player group for easy finding
+	# Replace Unit script with Player script (which extends Unit, just adds turn-based init)
+	var player_script = load("res://Scripts/Player.gd")
+	if player_script:
+		player.set_script(player_script)
+		# Re-add to groups after script replacement (groups might be lost)
+		player.add_to_group("Units")
+		player.add_to_group("Player")
+		print("[Game] Player script replaced, re-added to groups")
+	# Assign name and sprite (same as NPCs)
+	var player_soul = player.find_child("Soul", false, false)
+	if player_soul:
+		player_soul.personality.name = "Somchai"
+		player_soul.personality.archetype = "Somchai"
+		print("[Game] Player soul name set to: %s" % player_soul.personality.name)
+	call_deferred("_setup_character_sprite", player, "Somchai.png")
+	
+	# Detective positioned between suspects
+	var detective = unit_scene.instantiate()
+	detective.position = Vector2(25, floor_y)
 	add_child(detective)
 	detective.add_to_group("Units")
+	# Assign name and sprite
+	var detective_soul = detective.find_child("Soul", false, false)
+	if detective_soul:
+		detective_soul.personality.name = "UNIT-7"
+		detective_soul.personality.archetype = "UNIT-7"
+	call_deferred("_setup_character_sprite", detective, "UNIT7.png")
 	
-	positions = [Vector2(-150, 0), Vector2(50, 0), Vector2(150, 0)]
+	# Position characters in a line across the foreground of the room
+	# Adjust positions to work with the room background (characters should be on the floor/platform)
+	var positions = [Vector2(-200, floor_y), Vector2(-50, floor_y), Vector2(100, floor_y), Vector2(250, floor_y)]
 	# 1. Madam Vanna (Gold/Red) - Tycoon
 	var vanna = unit_scene.instantiate()
 	vanna.position = positions[0]
-	vanna.modulate = Color(1.0, 0.8, 0.4) # Gold
-	vanna.add_to_group("Units")
 	add_child(vanna)
+	vanna.add_to_group("Units")
+	var vanna_soul = vanna.find_child("Soul", false, false)
+	if vanna_soul:
+		vanna_soul.personality.name = "Madam Vanna"
+		vanna_soul.personality.archetype = "Madam Vanna"
+	call_deferred("_setup_character_sprite", vanna, "Madam_Vanna.png")
 	
 	# 2. Dr. Aris (Green/White) - Bio-Engineer
 	var aris = unit_scene.instantiate()
 	aris.position = positions[1]
-	aris.modulate = Color(0.6, 1.0, 0.6) # Bio Green
-	aris.add_to_group("Units")
 	add_child(aris)
+	aris.add_to_group("Units")
+	var aris_soul = aris.find_child("Soul", false, false)
+	if aris_soul:
+		aris_soul.personality.name = "Dr. Aris"
+		aris_soul.personality.archetype = "Dr. Aris"
+	call_deferred("_setup_character_sprite", aris, "Dr_Aris.png")
 
 	# 3. Lila (Purple) - Daughter
 	var lila = unit_scene.instantiate()
 	lila.position = positions[2]
-	lila.modulate = Color(0.7, 0.4, 1.0) # Purple
-	lila.add_to_group("Units")
 	add_child(lila)
+	lila.add_to_group("Units")
+	var lila_soul = lila.find_child("Soul", false, false)
+	if lila_soul:
+		lila_soul.personality.name = "Lila"
+		lila_soul.personality.archetype = "Lila"
+	call_deferred("_setup_character_sprite", lila, "Lila.png")
+
+func _setup_ground_collision() -> void:
+	# Find or create ground collision
+	var ground = find_child("Ground", false, false)
+	if not ground:
+		# Create ground if it doesn't exist
+		ground = StaticBody2D.new()
+		ground.name = "Ground"
+		add_child(ground)
+	
+	# Remove old collision shapes
+	for child in ground.get_children():
+		if child is CollisionShape2D:
+			child.queue_free()
+	
+	# Create ground collision at floor level
+	var collision = CollisionShape2D.new()
+	var shape = RectangleShape2D.new()
+	shape.size = Vector2(3000, 50)  # Wide enough to cover the room
+	collision.shape = shape
+	# Position at floor level - match the floor_y used for characters
+	var floor_y = 280
+	collision.position = Vector2(0, floor_y + 25)  # Position at floor level (floor_y + half height of collision)
+	ground.add_child(collision)
+	ground.collision_layer = 1  # Layer 1 for ground
+	ground.collision_mask = 0  # Ground doesn't collide with anything
+	print("[Game] Ground collision set up at Y: %d (floor_y: %d)" % [collision.position.y, floor_y])
+
+func _setup_character_sprite(unit: Unit, sprite_filename: String) -> void:
+	if not is_instance_valid(unit):
+		push_error("Unit is not valid for sprite setup!")
+		return
+	
+	# Find the Visuals node and Body ColorRect
+	var visuals = unit.find_child("Visuals", false, false)
+	if not visuals:
+		push_warning("Unit %s has no Visuals node!" % unit.name)
+		return
+	
+	var body_rect = visuals.find_child("Body", false, false)
+	if body_rect:
+		# Replace ColorRect with Sprite2D
+		var sprite = Sprite2D.new()
+		var texture = load("res://Assets/Characters/" + sprite_filename)
+		if texture:
+			sprite.texture = texture
+			# Position sprite at origin (0,0) relative to Visuals, centered
+			sprite.position = Vector2(0, 0)
+			# Get texture size and scale appropriately
+			var tex_size = texture.get_size()
+			# Scale sprite to reasonable size (adjust as needed)
+			# Character sprites should be visible but not too large
+			# Assuming characters should be around 150-200 pixels tall on screen
+			var target_height = 180.0
+			var scale_factor = target_height / tex_size.y
+			sprite.scale = Vector2(scale_factor, scale_factor)
+			sprite.name = "BodySprite"
+			sprite.z_index = 10  # Ensure characters are above background
+			sprite.visible = true  # Explicitly make visible
+			visuals.add_child(sprite)
+			body_rect.queue_free()  # Remove the old ColorRect
+			var char_name = unit.soul.personality.name if unit.soul else "Unknown"
+			print("[Game] Set sprite for %s: %s (scale: %.2f, unit pos: %s, sprite pos: %s, visible: %s)" % [char_name, sprite_filename, scale_factor, unit.position, sprite.position, sprite.visible])
+		else:
+			push_error("Failed to load character sprite: res://Assets/Characters/%s" % sprite_filename)
+	else:
+		# If no Body ColorRect exists, create sprite directly
+		var sprite = Sprite2D.new()
+		var texture = load("res://Assets/Characters/" + sprite_filename)
+		if texture:
+			sprite.texture = texture
+			sprite.position = Vector2(0, 0)
+			var tex_size = texture.get_size()
+			var target_height = 180.0
+			var scale_factor = target_height / tex_size.y
+			sprite.scale = Vector2(scale_factor, scale_factor)
+			sprite.name = "BodySprite"
+			sprite.z_index = 10
+			sprite.visible = true
+			visuals.add_child(sprite)
+			var char_name = unit.soul.personality.name if unit.soul else "Unknown"
+			print("[Game] Created sprite directly for %s: %s (no Body ColorRect found)" % [char_name, sprite_filename])
+		else:
+			push_error("Failed to load character sprite: res://Assets/Characters/%s" % sprite_filename)
+
+func _setup_camera() -> void:
+	# Add a camera to view the scene properly
+	var camera = Camera2D.new()
+	camera.name = "MainCamera"
+	camera.position = Vector2(0, 0)  # Center of the room
+	camera.zoom = Vector2(1.0, 1.0)  # Adjust zoom to fit the view
+	camera.enabled = true
+	camera.offset = Vector2(0, 0)  # No offset
+	add_child(camera)
+	# Make camera current so it's the active camera
+	camera.make_current()
+	print("[Game] Camera set up at position: %s, zoom: %s, current: %s" % [camera.position, camera.zoom, camera.is_current()])
 
 func _setup_atmosphere() -> void:
-	# Dark, indoor vibe
+	# Set background color to match room.png edges (dark blue/black)
+	# This will only show if background doesn't cover everything
 	RenderingServer.set_default_clear_color(Color(0.05, 0.05, 0.1))
 	
-	# Giant House Background
-	var house_bg = ColorRect.new()
-	house_bg.size = Vector2(800, 400)
-	house_bg.position = Vector2(-400, -200) # Centered
-	house_bg.color = Color(0.2, 0.15, 0.1) # Dark wood brown
-	house_bg.name = "HouseBackground"
-	add_child(house_bg)
-	move_child(house_bg, 0) # Send to back
-	
-	# Floor
-	var floor_rect = ColorRect.new()
-	floor_rect.size = Vector2(800, 50)
-	floor_rect.position = Vector2(-400, 40) # Under feet
-	floor_rect.color = Color(0.1, 0.05, 0.02) # Darker floor
-	add_child(floor_rect)
-	
-	var west_bg = ColorRect.new()
-	west_bg.size = Vector2(400, 648)
-	west_bg.position = Vector2(-800, -324) # Approximate left side
-	var west_mat = ShaderMaterial.new()
-	west_mat.shader = preload("res://Shaders/fire.gdshader")
-	west_bg.material = west_mat
-	add_child(west_bg)
-	move_child(west_bg, 0) # Send to back
-
-	var west_smoke = CPUParticles2D.new()
-	west_smoke.position = Vector2(-600, 300)
-	west_smoke.amount = 20
-	west_smoke.direction = Vector2(0, -1)
-	west_smoke.spread = 30.0
-	west_smoke.gravity = Vector2(0, -98)
-	west_smoke.initial_velocity_min = 50.0
-	west_smoke.initial_velocity_max = 100.0
-	west_smoke.scale_amount_min = 5.0
-	west_smoke.scale_amount_max = 10.0
-	west_smoke.color = Color(0.2, 0.2, 0.2, 0.5)
-	add_child(west_smoke)
-
-	# EAST (Water/Spores)
-	var east_bg = ColorRect.new()
-	east_bg.size = Vector2(400, 648)
-	east_bg.position = Vector2(400, -324) # Approximate right side
-	var east_mat = ShaderMaterial.new()
-	east_mat.shader = preload("res://Shaders/water.gdshader")
-	east_bg.material = east_mat
-	add_child(east_bg)
-	move_child(east_bg, 0)
-
-	var east_spores = CPUParticles2D.new()
-	east_spores.position = Vector2(600, 300)
-	east_spores.amount = 30
-	east_spores.direction = Vector2(0, -1)
-	east_spores.gravity = Vector2(0, -10)
-	east_spores.emission_shape = CPUParticles2D.EMISSION_SHAPE_SPHERE
-	east_spores.emission_sphere_radius = 100.0
-	east_spores.scale_amount_min = 2.0
-	east_spores.scale_amount_max = 4.0
-	east_spores.color = Color(0.5, 0.0, 1.0, 0.8) # Purple spores
-	add_child(east_spores)
+	# Load and set room background image
+	var room_texture = load("res://Assets/Backgrounds/room.png")
+	if room_texture:
+		var bg_sprite = Sprite2D.new()
+		bg_sprite.texture = room_texture
+		# Get texture size and scale appropriately
+		var tex_size = room_texture.get_size()
+		# Scale to fit viewport height (720) - crop sides if needed
+		# This ensures we see floor to ceiling
+		var viewport_height = 720.0
+		var scale_factor = viewport_height / tex_size.y
+		bg_sprite.scale = Vector2(scale_factor, scale_factor)
+		
+		# Position so center of image is at origin (Sprite2D centers by default)
+		bg_sprite.position = Vector2(0, 0)
+		bg_sprite.name = "RoomBackground"
+		bg_sprite.z_index = -100  # Ensure it's behind everything
+		bg_sprite.centered = true  # Ensure sprite is centered
+		
+		add_child(bg_sprite)
+		move_child(bg_sprite, 0) # Send to back
+		
+		var scaled_width = tex_size.x * scale_factor
+		var scaled_height = tex_size.y * scale_factor
+		print("[Game] Room background loaded: original %s, scaled to %s, position: %s, scale: %s" % [tex_size, Vector2(scaled_width, scaled_height), bg_sprite.position, bg_sprite.scale])
+	else:
+		push_error("Failed to load room.png background!")
+		# Fallback to dark background
+		var fallback_bg = ColorRect.new()
+		fallback_bg.size = Vector2(2000, 1000)
+		fallback_bg.position = Vector2(-1000, -500)
+		fallback_bg.color = Color(0.05, 0.05, 0.1)
+		fallback_bg.name = "FallbackBackground"
+		add_child(fallback_bg)
+		move_child(fallback_bg, 0)
 
 	# Day/Night Cycle
 	_setup_day_night()

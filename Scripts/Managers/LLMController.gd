@@ -29,6 +29,8 @@ func _ready():
 			GlobalSignalBus.request_social_interaction.connect(_on_social_request)
 		if not GlobalSignalBus.request_summary_merge.is_connected(_on_summary_merge_request):
 			GlobalSignalBus.request_summary_merge.connect(_on_summary_merge_request)
+		if not GlobalSignalBus.request_turn_action.is_connected(_on_turn_action_request):
+			GlobalSignalBus.request_turn_action.connect(_on_turn_action_request)
 	# Listen for LLM Stream Logic Results
 	if LLMStreamService:
 		if not LLMStreamService.logic_received.is_connected(_on_llm_logic_received):
@@ -38,6 +40,7 @@ func _ready():
 			LLMStreamService.response_complete.connect(_on_llm_response_complete)
 
 var pending_social_interaction: Dictionary = {}
+var pending_turn_action: Dictionary = {}
 
 func _on_social_request(soul_a: Node, soul_b: Node, prompt: String) -> void:
 	if pending_social_interaction.size() > 0:
@@ -188,6 +191,45 @@ func _on_summary_merge_response(payload: Dictionary) -> void:
 	if LLMStreamService.logic_received.is_connected(_on_summary_merge_response):
 		LLMStreamService.logic_received.disconnect(_on_summary_merge_response)
 
+# Turn-Based Action System
+func _on_turn_action_request(character: Node, prompt: String) -> void:
+	if pending_turn_action.size() > 0:
+		print("[LLMController] Turn action already in progress. Dropping request.")
+		return
+	
+	print("[LLMController] Processing turn action for %s" % character.soul.personality.name)
+	pending_turn_action = {"character": character}
+	
+	# Use LOGIC mode for structured JSON response
+	LLMStreamService.request_inference("You are a Game Master simulation engine for a murder mystery.", prompt, "LOGIC")
+	
+	# Connect to response (one-time)
+	if not LLMStreamService.logic_received.is_connected(_on_turn_action_response):
+		LLMStreamService.logic_received.connect(_on_turn_action_response)
+
+func _on_turn_action_response(payload: Dictionary) -> void:
+	print("[LLMController] Turn action response received: ", payload)
+	
+	if pending_turn_action.is_empty():
+		print("[LLMController] WARNING: No pending turn action!")
+		return
+	
+	var character = pending_turn_action["character"]
+	
+	if not is_instance_valid(character):
+		print("[LLMController] ERROR: character was freed!")
+		pending_turn_action.clear()
+		return
+	
+	# Emit the result
+	GlobalSignalBus.turn_action_completed.emit(character, payload)
+	
+	pending_turn_action.clear()
+	
+	# Disconnect
+	if LLMStreamService.logic_received.is_connected(_on_turn_action_response):
+		LLMStreamService.logic_received.disconnect(_on_turn_action_response)
+
 
 
 func generate_text(prompt: String):
@@ -199,11 +241,17 @@ func generate_text(prompt: String):
 		emit_signal("error_occurred", "API Key missing")
 		return
 
+	# Log API key being used (masked for security)
+	var masked_key = api_key.substr(0, 10) + "..." + api_key.substr(api_key.length() - 4)
+	print("[LLMController] Using API Key: %s (full length: %d)" % [masked_key, api_key.length()])
+	print("[LLMController] Full API Key (for debugging): %s" % api_key)
+
 	is_processing_request = true
 	emit_signal("request_started")
 	# GlobalSignalBus.response_received.emit("...Thinking...") # Removed: This was unlocking UI too early
 
 	var url = "https://generativelanguage.googleapis.com/v1beta/models/" + model_name + ":generateContent?key=" + api_key
+	print("[LLMController] Request URL (without key): %s:generateContent?key=[REDACTED]" % model_name)
 	var headers = ["Content-Type: application/json"]
 	
 	# Structure for 'contents'

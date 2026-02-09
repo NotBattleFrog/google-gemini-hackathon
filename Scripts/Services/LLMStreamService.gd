@@ -24,9 +24,17 @@ var context_window: Array[Dictionary] = []
 
 func _ready() -> void:
 	client = HTTPClient.new()
-	# Load API Key from ConfigManager if available, or Settings
-	if ConfigManager.api_key:
-		api_key = ConfigManager.api_key
+	# Don't cache API key here - always read from ConfigManager when needed
+	# This ensures ConfigManager is the single source of truth
+	api_key = ""  # Clear any cached value
+	
+	# Log ConfigManager API key status (masked for security)
+	if ConfigManager.api_key and ConfigManager.api_key.length() >= 20:
+		var masked_key = ConfigManager.api_key.substr(0, 10) + "..." + ConfigManager.api_key.substr(ConfigManager.api_key.length() - 4)
+		print("[LLMStreamService] ConfigManager API Key available: %s (length: %d)" % [masked_key, ConfigManager.api_key.length()])
+	else:
+		print("[LLMStreamService] WARNING: ConfigManager API Key is invalid! Value: '%s' (length: %d)" % [ConfigManager.api_key, ConfigManager.api_key.length()])
+		print("[LLMStreamService] Will use fallback key when making requests.")
 	
 	# Ensure this runs even when paused (streaming doesn't stop)
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -84,12 +92,27 @@ func _process(delta: float) -> void:
 			print("[LLM DEBUG] Unexpected status: ", status)
 
 func request_inference(system_prompt: String, user_input: String, mode: String = "CHAT") -> void:
+	# Always read API key from ConfigManager (single source of truth)
+	# Never use cached api_key variable - always read fresh from ConfigManager
+	var current_api_key = ConfigManager.api_key
+	if current_api_key.is_empty() or current_api_key.length() < 20:
+		# Fallback to default if ConfigManager doesn't have one or has invalid key
+		current_api_key = "AIzaSyCWgSRFKv_vEZSFZkbawDmYlHgaNwaR5Io"
+		print("[LLM DEBUG] Using fallback API key (ConfigManager had invalid key: '%s')" % ConfigManager.api_key)
+	
+	# Log what we're about to use
+	print("[LLM DEBUG] ConfigManager.api_key length: %d" % ConfigManager.api_key.length())
+	print("[LLM DEBUG] Current API key to use length: %d" % current_api_key.length())
+	
 	# 1. API Key Check
-	if api_key.is_empty():
+	if current_api_key.is_empty():
 		print("[LLM DEBUG] Error: No API Key found.")
 		push_error("LLMService: No API Key.")
 		emit_signal("response_complete", "Error: No API Key configured.")
 		return
+	
+	# Use the fresh key
+	api_key = current_api_key
 		
 	if is_streaming:
 		print("[LLM DEBUG] Warning: Stream busy. Ignoring request.")
@@ -114,10 +137,18 @@ func request_inference(system_prompt: String, user_input: String, mode: String =
 		return
 		
 	print("[LLM DEBUG] Connection established. Sending request...")
+	
+	# Log API key being used (masked for security)
+	var masked_key = api_key.substr(0, 10) + "..." + api_key.substr(api_key.length() - 4)
+	print("[LLM DEBUG] Using API Key: %s (full length: %d)" % [masked_key, api_key.length()])
+	print("[LLM DEBUG] Full API Key (for debugging): %s" % api_key)
+	print("[LLM DEBUG] ConfigManager.api_key (for comparison): %s" % ConfigManager.api_key)
 		
 	# Build Request
 	var url = ENDPOINT + "?key=" + api_key
 	var headers = ["Content-Type: application/json"]
+	
+	print("[LLM DEBUG] Request URL (without key): %s?key=[REDACTED]" % ENDPOINT)
 	
 	var body_dict = {
 		"contents": [{

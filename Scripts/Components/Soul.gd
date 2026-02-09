@@ -31,6 +31,14 @@ const SAVE_DEBOUNCE_TIME: float = 2.0  # Batch saves every 2 seconds
 
 var unit_owner: Node = null  # Reference to the owning Unit
 
+# Turn-Based State
+var goal: String = ""
+var knowledge: Array[String] = []
+var fear: float = 0.5  # 0.0 = calm, 1.0 = terrified
+var composure: float = 0.5  # 0.0 = breaking down, 1.0 = perfectly calm
+var recent_actions: Array[Dictionary] = []  # Store recent actions for context
+var ghost_influences: Array[String] = []  # Ghost whispers/influences
+
 func _ready() -> void:
 	add_to_group("souls")
 	unit_owner = get_parent()
@@ -50,8 +58,9 @@ func _ready() -> void:
 	add_child(save_timer)
 	save_timer.start()
 		
-	# Randomize initial personality for testing
-	_randomize_persona()
+	# Randomize initial personality for testing (only if name not already set)
+	if personality.name == "Unit" or personality.name.is_empty():
+		_randomize_persona()
 	
 	# Load persistent conversation summaries
 	load_conversations()
@@ -71,7 +80,8 @@ func can_socialize() -> bool:
 	var battle_manager = get_node_or_null("/root/Game/BattleManager")
 	if battle_manager and battle_manager.is_in_battle():
 		return false
-	return cooldown_timer.is_stopped()
+	# Cooldown removed - turn-based system handles timing
+	return true
 
 func initiate_social_interaction(other_soul: SoulComponent, extra_context: String = "") -> void:
 	if not can_socialize() or not other_soul.can_socialize():
@@ -104,9 +114,9 @@ func initiate_social_interaction(other_soul: SoulComponent, extra_context: Strin
 		MAX_PARTNERS_PER_DAY
 	])
 		
-	# Set cooldown timers
-	cooldown_timer.start(COOLDOWN_TIME)
-	other_soul.cooldown_timer.start(COOLDOWN_TIME)
+	# Cooldown removed - turn-based system handles timing
+	# cooldown_timer.start(COOLDOWN_TIME)
+	# other_soul.cooldown_timer.start(COOLDOWN_TIME)
 	
 	print("Soul %s initiating chat with %s" % [personality.name, other_soul.personality.name])
 	
@@ -334,3 +344,74 @@ func _check_daily_reset() -> void:
 		print("[Soul] ✨ New day! %s can talk again (Day %d)" % [personality.name, current_day])
 		daily_conversations.clear()
 		last_reset_day = current_day
+
+# ========== TURN-BASED SYSTEM METHODS ==========
+
+func initialize_turn_based_state(character_goal: String, initial_knowledge_array: Array = []) -> void:
+	goal = character_goal
+	knowledge.clear()
+	
+	# Add initial knowledge if provided
+	if initial_knowledge_array.size() > 0:
+		knowledge.append_array(initial_knowledge_array)
+	
+	fear = 0.5  # Start at neutral
+	composure = 0.5  # Start at neutral
+	recent_actions.clear()
+	ghost_influences.clear()
+	print("[Soul] %s initialized with goal: %s" % [personality.name, goal.left(50) + "..."])
+	if knowledge.size() > 0:
+		print("[Soul] %s initial knowledge: %d items" % [personality.name, knowledge.size()])
+
+func get_turn_based_state() -> Dictionary:
+	return {
+		"goal": goal,
+		"knowledge": knowledge.duplicate(),
+		"fear": fear,
+		"composure": composure,
+		"name": personality.name
+	}
+
+func apply_turn_state_changes(changes: Dictionary) -> void:
+	if "fear_delta" in changes:
+		fear = clamp(fear + changes["fear_delta"], 0.0, 1.0)
+		print("[Soul] %s fear changed to %.2f" % [personality.name, fear])
+	
+	if "composure_delta" in changes:
+		composure = clamp(composure + changes["composure_delta"], 0.0, 1.0)
+		print("[Soul] %s composure changed to %.2f" % [personality.name, composure])
+	
+	if "new_knowledge" in changes:
+		for item in changes["new_knowledge"]:
+			add_knowledge(item)
+
+func add_knowledge(item: String) -> void:
+	if not item in knowledge:
+		knowledge.append(item)
+		print("[Soul] %s learned: %s" % [personality.name, item])
+
+func add_ghost_influence(text: String) -> void:
+	ghost_influences.append(text)
+	add_knowledge("[GHOST WHISPER] " + text)
+	print("[Soul] %s received ghost influence: %s" % [personality.name, text])
+
+func record_action(action: Dictionary) -> void:
+	recent_actions.append(action)
+	# Keep only last 5 actions
+	if recent_actions.size() > 5:
+		recent_actions.pop_front()
+
+func get_recent_actions() -> Array[Dictionary]:
+	return recent_actions.duplicate()
+
+func observe_action(actor: Node, action_type: String, text: String, observation_type: String) -> void:
+	# observation_type: "heard" (full content) or "observed" (just saw something happen)
+	var observation = ""
+	if observation_type == "heard":
+		observation = "%s said: '%s'" % [actor.soul.personality.name, text]
+		add_knowledge(observation)
+	elif observation_type == "observed":
+		observation = text  # e.g., "[Actor whispers to Target]"
+		add_knowledge(observation)
+	
+	print("[Soul] %s observed: %s" % [personality.name, observation])

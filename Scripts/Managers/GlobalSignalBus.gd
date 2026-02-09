@@ -33,3 +33,7 @@ signal request_load
 # LLM Signals
 signal response_received(text: String)
 signal request_social_interaction(soul_a: Node, soul_b: Node, prompt: String)
+
+# Turn-Based System Signals
+signal request_turn_action(character: Node, prompt: String)
+signal turn_action_completed(character: Node, result: Dictionary)
