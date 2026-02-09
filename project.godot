@@ -23,11 +23,8 @@ SaveManager="*res://Scripts/Managers/SaveManager.gd"
 LLMController="*res://Scripts/Managers/LLMController.gd"
 LLMStreamService="*res://Scripts/Services/LLMStreamService.gd"
 LoreManager="*res://Scripts/Managers/LoreManager.gd"
-WaveManager="*res://Scripts/Managers/WaveManager.gd"
 EconomyManager="*res://Scripts/Managers/EconomyManager.gd"
 AudioManager="*res://Scripts/Managers/AudioManager.gd"
-GameStateTracker="*res://Scripts/Managers/GameStateTracker.gd"
-PetitionManager="*res://Scripts/Managers/PetitionManager.gd"
 
 [display]
 

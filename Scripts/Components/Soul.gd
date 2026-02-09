@@ -179,25 +179,25 @@ func _construct_social_prompt(other: SoulComponent, extra_context: String = "") 
 		final_context += "\n\n[GHOSTLY WHISPER]\n" + extra_context
 	
 	return """
-    Generate a short 2-line dialogue between these two characters.
-    Character A: %s%s
-    Character B: %s%s
-    Context: %s
-    
-    Output JSON ONLY:
-    {
-        "dialogue": [
-            {"speaker": "A", "text": "..."},
-            {"speaker": "B", "text": "..."}
-        ],
-        "summary": "Brief 1-sentence summary of this conversation",
-        "interaction_result": {
-            "relationship_change": 0.1,
-            "morale_impact_A": 0.1,
-            "morale_impact_B": 0.0,
-            "new_trait_A": "Inspired"
-        }
-    }
+	Generate a short 2-line dialogue between these two characters.
+	Character A: %s%s
+	Character B: %s%s
+	Context: %s
+	
+	Output JSON ONLY:
+	{
+		"dialogue": [
+			{"speaker": "A", "text": "..."},
+			{"speaker": "B", "text": "..."}
+		],
+		"summary": "Brief 1-sentence summary of this conversation",
+		"interaction_result": {
+			"relationship_change": 0.1,
+			"morale_impact_A": 0.1,
+			"morale_impact_B": 0.0,
+			"new_trait_A": "Inspired"
+		}
+	}
 	""" % [my_desc, my_context, their_desc, their_context, final_context]
 
 func apply_interaction_result(result: Dictionary, other_soul: SoulComponent) -> void:
