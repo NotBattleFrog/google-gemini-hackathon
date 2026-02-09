@@ -1,9 +1,5 @@
 extends CanvasLayer
 
-# New Diplomacy System
-var diplomacy_panel_scene = preload("res://Scenes/UI/DiplomacyPanel.tscn")
-var diplomacy_panel_instance: Control
-
 # API Key Settings Panel
 var api_key_panel: Panel
 var api_key_input: LineEdit

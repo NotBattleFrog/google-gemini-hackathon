@@ -1,5 +1,4 @@
 extends Node
-class_name MysteryManager
 
 # Signals
 signal phase_changed(phase: String) # "CONVERSATION", "GHOST_TURN"
@@ -23,7 +22,7 @@ var ghost_message_text: String = ""
 func _ready() -> void:
 	print("[MysteryManager] Initialized")
 	# Wait for units to spawn - use a longer delay to ensure units are ready
-	await get_tree().create_timer(0.5).timeout
+	await get_tree().create_timer(1.5).timeout
 	call_deferred("_setup_mystery")
 
 func _setup_mystery() -> void:
@@ -33,7 +32,28 @@ func _setup_mystery() -> void:
 	var units = get_tree().get_nodes_in_group("Units")
 	if units.size() < 4:
 		print("[MysteryManager] WARNING: Not enough units found! Needs 4 (1 Detective + 3 Suspects). Found: ", units.size())
+		print("[MysteryManager] Retrying in 1 second...")
+		await get_tree().create_timer(1.0).timeout
+		_setup_mystery()
 		return
+	
+	# Validate that units have soul components
+	var valid_units = []
+	for unit in units:
+		if unit.soul and unit.soul.personality:
+			valid_units.append(unit)
+		else:
+			print("[MysteryManager] WARNING: Unit %s missing soul or personality, skipping" % unit.name)
+	
+	if valid_units.size() < 4:
+		print("[MysteryManager] WARNING: Not enough valid units with souls! Found: %d, Need: 4" % valid_units.size())
+		print("[MysteryManager] Retrying in 1 second...")
+		await get_tree().create_timer(1.0).timeout
+		_setup_mystery()
+		return
+	
+	# Use valid units
+	units = valid_units
 		
 	# Assign Roles
 	# Assign Roles with Depth
@@ -78,6 +98,18 @@ func _setup_mystery() -> void:
 	_process_queue()
 
 func _assign_role(unit: Unit, role_name: String, npc_trait: String, state_desc: String, secret: String, conflict: String) -> void:
+	if not unit:
+		push_error("[MysteryManager] Cannot assign role to null unit")
+		return
+	
+	if not unit.soul:
+		push_error("[MysteryManager] Unit %s has no soul component!" % unit.name)
+		return
+	
+	if not unit.soul.personality:
+		push_error("[MysteryManager] Unit %s soul has no personality!" % unit.name)
+		return
+	
 	unit.soul.personality.archetype = role_name # Name
 	unit.soul.personality.role = "Suspect" if secret != "" else "Detective"
 	unit.soul.personality.traits = [npc_trait]
@@ -87,7 +119,8 @@ func _assign_role(unit: Unit, role_name: String, npc_trait: String, state_desc: 
 	unit.soul.personality["secret"] = secret
 	unit.soul.personality["conflict"] = conflict
 	
-	unit.update_debug_label() # Refresh label
+	if unit.has_method("update_debug_label"):
+		unit.update_debug_label() # Refresh label
 
 func _generate_conversation_queue() -> void:
 	# Generate random pairings
@@ -143,6 +176,19 @@ func _on_conversation_completed() -> void:
 	_process_queue()
 
 func _force_conversation(unit_a: Unit, unit_b: Unit) -> void:
+	# Validate units
+	if not unit_a or not unit_b:
+		push_error("[MysteryManager] Cannot force conversation with null units")
+		conversation_count += 1
+		_process_queue()
+		return
+	
+	if not unit_a.soul or not unit_b.soul:
+		push_error("[MysteryManager] Units missing soul component: %s or %s" % [unit_a.name, unit_b.name])
+		conversation_count += 1
+		_process_queue()
+		return
+	
 	# Inject ghost message if applicable
 	var extra_context = ""
 	if ghost_message_target and (unit_a == ghost_message_target or unit_b == ghost_message_target):

@@ -203,9 +203,7 @@ The following singletons are loaded automatically:
 - `LLMController`: LLM request coordinator
 - `LLMStreamService`: API communication
 - `LoreManager`: Event tracking
-- `AudioManager`: Sound system
-- `GameStateTracker`: State tracking
-- `PetitionManager`: Petition system (legacy)
+- `MysteryManager`: Mystery scenario management
 
 ### State Management
 
