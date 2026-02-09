@@ -81,37 +81,6 @@ func get_lore_summary() -> String:
 		lines.append("[%s] %s" % [event.type, event.text])
 	return "\n".join(lines)
 
-# Chronicle generation (LLM-based)
-func generate_chronicle(outcome: String) -> void:
-	print("[Lore] Generating chronicle for run: %s" % current_run_id)
-	
-	# Build event summary for LLM prompt
-	var event_summary = ""
-	for event in events:
-		event_summary += "- %s: %s\n" % [event.type, event.text]
-	
-	var prompt = """
-You are the Royal Historian of a medieval kingdom. Compile these events into a legendary chronicle.
-
-Events:
-%s
-
-Outcome: %s
-Waves Survived: %d
-East Reputation: %.1f
-West Reputation: %.1f
-
-Generate a response in JSON format:
-{
-	"ruler_title": "The [Title]" (e.g., "The Brave", "The Miser", based on actions),
-	"narrative": "A 3-paragraph epic tale of this ruler's reign"
-}
-""" % [event_summary, outcome, waves_survived, east_reputation, west_reputation]
-	
-	# Request LLM generation
-	GlobalSignalBus.request_chronicle_generation.connect(_on_chronicle_generated)
-	LLMController.generate_chronicle_text(prompt)
-
 func _on_chronicle_generated(response: Dictionary) -> void:
 	save_chronicle(response.get("narrative", "..."), response.get("ruler_title", "The Forgotten"))
 

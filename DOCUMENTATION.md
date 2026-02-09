@@ -1,8 +1,8 @@
-# The Middle Kingdom - Game Documentation
+# Cyber Noir - Game Documentation
 
 ## Overview
 
-**The Middle Kingdom** is a murder mystery simulation game built in Godot 4.5. The player takes on the role of Somchai, a ghost who was murdered by a Neural Link overload. The game features AI-powered NPCs that engage in dynamic conversations, with the player able to influence conversations as a ghost.
+**Cyber Noir** is a murder mystery simulation game built in Godot 4.5. The player takes on the role of Somchai, a ghost who was murdered by a Neural Link overload. The game features AI-powered NPCs that engage in dynamic conversations, with the player able to influence conversations as a ghost.
 
 ## Game Mechanics
 

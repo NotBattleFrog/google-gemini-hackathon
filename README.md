@@ -1,4 +1,4 @@
-# The Middle Kingdom
+# Cyber Noir
 
 A murder mystery simulation game powered by Google Gemini AI, built with Godot 4.5.
 

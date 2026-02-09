@@ -134,16 +134,6 @@ func send_prompt(user_input: String, npc_persona: String) -> void:
 	
 	generate_text(full_prompt)
 
-# Chronicle generation wrapper
-func generate_chronicle_text(prompt: String) -> void:
-	print("[LLMController] Generating chronicle...")
-	# Use LOGIC mode for structured JSON response
-	LLMStreamService.request_inference("You are a Royal Historian.", prompt, "LOGIC")
-	
-	# Connect to response (one-time)
-	if not LLMStreamService.logic_received.is_connected(_on_chronicle_logic_received):
-		LLMStreamService.logic_received.connect(_on_chronicle_logic_received)
-
 func _on_chronicle_logic_received(payload: Dictionary) -> void:
 	print("[LLMController] Chronicle logic received: ", payload)
 	GlobalSignalBus.chronicle_generated.emit(payload)

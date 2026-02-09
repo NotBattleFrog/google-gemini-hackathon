@@ -55,7 +55,7 @@ theme_override_constants/separation = 20
 [node name="Title" type="Label" parent="MenuContainer"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 32
-text = "The Middle Kingdom"
+text = "Cyber Noir"
 horizontal_alignment = 1
 
 [node name="NewGameBtn" type="Button" parent="MenuContainer"]
