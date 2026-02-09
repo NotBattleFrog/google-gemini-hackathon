@@ -16,9 +16,31 @@ func _setup_api_key_panel() -> void:
 	api_key_panel = Panel.new()
 	api_key_panel.name = "APIKeyPanel"
 	api_key_panel.visible = false
-	api_key_panel.anchors_preset = Control.PRESET_CENTER
-	api_key_panel.custom_minimum_size = Vector2(400, 250)
-	api_key_panel.position = Vector2(-200, -125)
+	
+	# Center the panel properly
+	api_key_panel.set_anchors_preset(Control.PRESET_CENTER)
+	api_key_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	api_key_panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	api_key_panel.custom_minimum_size = Vector2(500, 300)
+	api_key_panel.offset_left = -250  # Half of width
+	api_key_panel.offset_top = -150   # Half of height
+	api_key_panel.offset_right = 250
+	api_key_panel.offset_bottom = 150
+	
+	# Add visible background styling
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color(0.15, 0.15, 0.2, 0.95)  # Dark blue-gray
+	style.border_color = Color(0.4, 0.6, 0.8, 1.0)  # Light blue border
+	style.border_width_left = 2
+	style.border_width_right = 2
+	style.border_width_top = 2
+	style.border_width_bottom = 2
+	style.corner_radius_top_left = 8
+	style.corner_radius_top_right = 8
+	style.corner_radius_bottom_left = 8
+	style.corner_radius_bottom_right = 8
+	api_key_panel.add_theme_stylebox_override("panel", style)
+	
 	add_child(api_key_panel)
 	
 	# Container
@@ -35,12 +57,14 @@ func _setup_api_key_panel() -> void:
 	title.text = "API Key Settings"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 24)
+	title.add_theme_color_override("font_color", Color.WHITE)
 	vbox.add_child(title)
 	
 	# Info Label
 	var info_label = Label.new()
 	info_label.text = "Enter your Google Gemini API Key:"
 	info_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	info_label.add_theme_color_override("font_color", Color.WHITE)
 	vbox.add_child(info_label)
 	
 	# Input Field
