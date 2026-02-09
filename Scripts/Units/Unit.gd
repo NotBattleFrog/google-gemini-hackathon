@@ -44,13 +44,8 @@ func _ready() -> void:
 	area.body_entered.connect(_on_social_area_entered)
 	area.body_exited.connect(_on_social_area_exited)
 	
-	# Setup periodic social check timer
-	social_check_timer = Timer.new()
-	social_check_timer.wait_time = SOCIAL_CHECK_INTERVAL
-	social_check_timer.one_shot = false
-	social_check_timer.timeout.connect(_check_for_socialization)
-	add_child(social_check_timer)
-	social_check_timer.start()
+	# Social check timer removed - turn-based system handles all interactions
+	# No need to find partners or check if busy - characters speak to everyone during their turn
 	
 	_setup_cooldown_label()
 
@@ -63,7 +58,7 @@ func _exit_tree() -> void:
 	conversation_partner = null
 
 var hp: float = 3.0
-var name_label: Label
+var name_label: Label = null
 
 var _last_debug_state: int = -1
 var _last_neighbor_count: int = -1
@@ -85,12 +80,43 @@ func die() -> void:
 	queue_free()
 
 const BUBBLE_SCENE = preload("res://Scenes/UI/DialogueBubble.tscn")
+var current_bubble: Node = null  # Track current bubble for clearing
+
+func clear_speech_bubbles() -> void:
+	# Remove all dialogue bubbles from this unit
+	for child in get_children():
+		if child is DialogueBubble or child.name == "DialogueBubble":
+			child.queue_free()
+	current_bubble = null
 
 func talk(message: String, emotion: String = "NEUTRAL") -> void:
+	# Clear any existing bubbles first
+	clear_speech_bubbles()
 	var bubble = BUBBLE_SCENE.instantiate()
 	add_child(bubble)
 	bubble.position = Vector2(0, -60) # Above head
 	bubble.speak(message, emotion)
+	current_bubble = bubble
+
+func show_thought(message: String) -> void:
+	# Clear any existing bubbles first
+	clear_speech_bubbles()
+	var bubble = BUBBLE_SCENE.instantiate()
+	add_child(bubble)
+	bubble.position = Vector2(0, -60) # Above head
+	bubble.speak(message, "THOUGHT")  # Use thought style
+	current_bubble = bubble
+	# Could add visual distinction for thoughts (different color, italic, etc.)
+
+func show_whisper(message: String, target_name: String = "") -> void:
+	# Clear any existing bubbles first
+	clear_speech_bubbles()
+	var bubble = BUBBLE_SCENE.instantiate()
+	add_child(bubble)
+	bubble.position = Vector2(0, -60) # Above head
+	bubble.speak(message, "WHISPER")  # Use whisper style
+	current_bubble = bubble
+	# Could add visual distinction for whispers (smaller, grayed out, etc.)
 
 func _physics_process(delta: float) -> void:
 	# Only update label when state/count changes
@@ -102,17 +128,21 @@ func _physics_process(delta: float) -> void:
 		update_debug_label()
 
 	# Global Mutiny Check
-	if soul.personality.loyalty < 0.1 and current_state != State.MUTINY:
+	if soul and soul.personality and soul.personality.loyalty < 0.1 and current_state != State.MUTINY:
 		enter_state(State.MUTINY)
 		talk("Down with the Crown!", "ANGER")
 		
 	match current_state:
 		State.IDLE:
-			# STATIC MODE: No movement
+			# STATIC MODE: No movement, but apply gravity for collision
 			velocity.x = 0
 			velocity.y += 980 * delta # Gravity ensures they stay on floor
 			
 			move_and_slide()
+			
+			# If we're on the floor, stop falling
+			if is_on_floor():
+				velocity.y = 0
 			
 			# Fallback: Query Area if we think we are alone
 			if nearby_units.is_empty():
@@ -150,32 +180,9 @@ func _on_social_area_exited(body: Node) -> void:
 		nearby_units.erase(body)
 
 func _check_for_socialization() -> void:
-	if not soul.can_socialize(): return
-	
-	# Simple check: pick random neighbor
-	# In real game, filter by distance, checking their state, etc.
-	# Clean up invalid refs first
-	nearby_units = nearby_units.filter(func(u): return is_instance_valid(u))
-	
-	if nearby_units.is_empty():
-		# print("Unit %s checked for partner, but nobody nearby." % name)
-		return
-	
-	var partner = nearby_units.pick_random()
-	print("Unit %s found potential partner %s." % [name, partner.name])
-	
-	if partner.soul.can_socialize() and partner.current_state == State.IDLE:
-		print("Both %s and %s are ready to socialize! Initiating..." % [name, partner.name])
-		enter_state(State.SOCIALIZING)
-		partner.enter_state(State.SOCIALIZING)
-		
-		conversation_partner = partner
-		partner.conversation_partner = self
-		
-		# Initiate
-		soul.initiate_social_interaction(partner.soul)
-	else:
-		print("Partner %s is busy or on cooldown." % partner.name)
+	# Disabled - turn-based system handles all character interactions
+	# Characters speak to everyone during their turn, no partner finding needed
+	pass
 
 # Called by Soul when LLM returns dialogue
 func play_dialogue_sequence(dialogue_list: Array, partner: Unit) -> void:
@@ -229,6 +236,8 @@ func notify_eavesdroppers(partner: Unit, dialogue_summary: String) -> void:
 			print("[Unit] -> %s overheard the conversation" % nearby.name)
 
 func update_debug_label() -> void:
+	if name_label == null or not is_instance_valid(name_label):
+		return  # Label not initialized yet
 	if soul and soul.personality:
 		name_label.text = soul.personality.get("name", "Unknown")
 	else:

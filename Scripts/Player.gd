@@ -1,27 +1,29 @@
-extends CharacterBody2D
-
-const SPEED = 300.0
-const JUMP_VELOCITY = -400.0
+extends Unit  # Extend Unit - Player is just like NPCs, no special movement needed
 
 func _ready():
-	# Ghost Mode: No collisions
-	collision_layer = 0
-	collision_mask = 0
-	# Note: Player sprite is set via modulate in Game.gd
+	# Ensure we're in the right groups (in case script replacement lost them)
+	if not is_in_group("Units"):
+		add_to_group("Units")
+	if not is_in_group("Player"):
+		add_to_group("Player")
 	
-func _physics_process(delta):
-	# GHOST MODE: Flying, no gravity
+	# Call parent _ready() first to set up Unit stuff
+	super._ready()
 	
-	# Vertical Movement (W/S)
-	var dir_y = 0
-	if Input.is_key_pressed(KEY_W): dir_y -= 1
-	if Input.is_key_pressed(KEY_S): dir_y += 1
-	velocity.y = dir_y * SPEED
+	print("[Player] Player._ready() STARTING - name: %s, in Units: %s, in Player: %s" % [name, is_in_group("Units"), is_in_group("Player")])
 	
-	# Horizontal Movement (A/D)
-	var dir_x = 0
-	if Input.is_key_pressed(KEY_A): dir_x -= 1
-	if Input.is_key_pressed(KEY_D): dir_x += 1
-	velocity.x = dir_x * SPEED
-
-	move_and_slide()
+	# Initialize turn-based state for Somchai
+	if soul:
+		var initial_knowledge = [
+			"You are Somchai, murdered by a Neural Link overload",
+			"You are now a ghost observing the investigation",
+			"UNIT-7 is investigating your murder",
+			"Madam Vanna, Dr. Aris, and Lila are suspects",
+			"You can influence the investigation as a ghost"
+		]
+		soul.initialize_turn_based_state("You are Somchai, the victim. As a ghost, you can observe and influence the investigation. Your goal is to help reveal the truth about your murder.", initial_knowledge)
+		print("[Player] Turn-based state initialized for Somchai")
+	else:
+		print("[Player] WARNING: Soul not found yet!")
+	
+	print("[Player] Player._ready() completed - name: %s, in Units group: %s, in Player group: %s" % [name, is_in_group("Units"), is_in_group("Player")])

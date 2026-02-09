@@ -22,7 +22,8 @@ var ghost_message_text: String = ""
 
 func _ready() -> void:
 	print("[MysteryManager] Initialized")
-	# Defer setup to allow units to spawn
+	# Wait for units to spawn - use a longer delay to ensure units are ready
+	await get_tree().create_timer(0.5).timeout
 	call_deferred("_setup_mystery")
 
 func _setup_mystery() -> void:

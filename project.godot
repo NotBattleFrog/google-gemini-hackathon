@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="The Middle Kingdom"
-run/main_scene="res://Scenes/MainMenu.tscn"
+run/main_scene="res://Scenes/Game.tscn"
 config/features=PackedStringArray("4.5", "Forward Plus")
 config/icon="res://icon.svg"
 
@@ -28,6 +28,13 @@ EconomyManager="*res://Scripts/Managers/EconomyManager.gd"
 AudioManager="*res://Scripts/Managers/AudioManager.gd"
 GameStateTracker="*res://Scripts/Managers/GameStateTracker.gd"
 PetitionManager="*res://Scripts/Managers/PetitionManager.gd"
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
 
 [input]
 

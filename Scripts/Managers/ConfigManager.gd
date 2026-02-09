@@ -15,11 +15,27 @@ func save_api_key(key: String) -> void:
         push_error("Failed to save config: %s" % err)
     else:
         print("API Key saved successfully.")
+        # Log API key (masked for security)
+        var masked_key = api_key.substr(0, 10) + "..." + api_key.substr(api_key.length() - 4)
+        print("[ConfigManager] Saved API Key: %s (length: %d)" % [masked_key, api_key.length()])
 
 func load_config() -> void:
+    # Load API key from saved file only - no hardcoded defaults
     var err = config_file.load(config_path)
     if err == OK:
         api_key = config_file.get_value("auth", "api_key", "")
-        print("Config loaded. API Key present: %s" % (not api_key.is_empty()))
+        print("[ConfigManager] Loaded from file - API Key length: %d" % api_key.length())
+        if api_key.length() > 0:
+            print("[ConfigManager] First 10 chars from file: %s" % api_key.substr(0, min(10, api_key.length())))
+        else:
+            print("[ConfigManager] No API key found in config file.")
     else:
-        print("No config file found or failed to load. Defaulting to empty.")
+        print("[ConfigManager] No config file found or failed to load.")
+        api_key = ""
+    
+    # Log API key status (masked for security)
+    if not api_key.is_empty():
+        var masked_key = api_key.substr(0, 10) + "..." + api_key.substr(api_key.length() - 4)
+        print("[ConfigManager] API Key loaded: %s (length: %d)" % [masked_key, api_key.length()])
+    else:
+        print("[ConfigManager] WARNING: API Key is empty! Please set it via the UI (press K) or config file.")
