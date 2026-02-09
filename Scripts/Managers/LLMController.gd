@@ -244,7 +244,6 @@ func generate_text(prompt: String):
 	# Log API key being used (masked for security)
 	var masked_key = api_key.substr(0, 10) + "..." + api_key.substr(api_key.length() - 4)
 	print("[LLMController] Using API Key: %s (full length: %d)" % [masked_key, api_key.length()])
-	print("[LLMController] Full API Key (for debugging): %s" % api_key)
 
 	is_processing_request = true
 	emit_signal("request_started")

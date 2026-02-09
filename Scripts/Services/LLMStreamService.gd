@@ -95,20 +95,15 @@ func request_inference(system_prompt: String, user_input: String, mode: String =
 	# Always read API key from ConfigManager (single source of truth)
 	# Never use cached api_key variable - always read fresh from ConfigManager
 	var current_api_key = ConfigManager.api_key
-	if current_api_key.is_empty() or current_api_key.length() < 20:
-		# Fallback to default if ConfigManager doesn't have one or has invalid key
-		current_api_key = "AIzaSyCWgSRFKv_vEZSFZkbawDmYlHgaNwaR5Io"
-		print("[LLM DEBUG] Using fallback API key (ConfigManager had invalid key: '%s')" % ConfigManager.api_key)
 	
 	# Log what we're about to use
 	print("[LLM DEBUG] ConfigManager.api_key length: %d" % ConfigManager.api_key.length())
-	print("[LLM DEBUG] Current API key to use length: %d" % current_api_key.length())
 	
-	# 1. API Key Check
-	if current_api_key.is_empty():
-		print("[LLM DEBUG] Error: No API Key found.")
-		push_error("LLMService: No API Key.")
-		emit_signal("response_complete", "Error: No API Key configured.")
+	# 1. API Key Check - no fallback, must be set by user
+	if current_api_key.is_empty() or current_api_key.length() < 20:
+		print("[LLM DEBUG] Error: No valid API Key found.")
+		push_error("LLMService: No valid API Key configured. Please set it via the UI (press K) or config file.")
+		emit_signal("response_complete", "Error: No API Key configured. Please set it via the UI (press K) or config file.")
 		return
 	
 	# Use the fresh key
@@ -141,8 +136,6 @@ func request_inference(system_prompt: String, user_input: String, mode: String =
 	# Log API key being used (masked for security)
 	var masked_key = api_key.substr(0, 10) + "..." + api_key.substr(api_key.length() - 4)
 	print("[LLM DEBUG] Using API Key: %s (full length: %d)" % [masked_key, api_key.length()])
-	print("[LLM DEBUG] Full API Key (for debugging): %s" % api_key)
-	print("[LLM DEBUG] ConfigManager.api_key (for comparison): %s" % ConfigManager.api_key)
 		
 	# Build Request
 	var url = ENDPOINT + "?key=" + api_key

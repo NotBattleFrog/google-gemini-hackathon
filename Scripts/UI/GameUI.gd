@@ -198,7 +198,6 @@ func _on_save_api_key() -> void:
 	var key = api_key_input.text.strip_edges()
 	if key.length() > 0:
 		print("[GameUI] Saving API key (length: %d)" % key.length())
-		print("[GameUI] Full API Key being saved (for debugging): %s" % key)
 		ConfigManager.save_api_key(key)
 		# LLMStreamService will read from ConfigManager automatically
 		api_key_status_label.text = "✓ API Key saved!"
