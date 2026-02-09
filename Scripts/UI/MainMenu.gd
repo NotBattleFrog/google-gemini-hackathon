@@ -38,6 +38,9 @@ func _ready() -> void:
 		var ui = game_preview.find_child("GameUI", true, false)
 		if ui:
 			ui.visible = false
+	
+	# Style the SetupPanel and APIKeyInput to be opaque and visible
+	_setup_panel_styling()
 
 
 func show_main_menu() -> void:
@@ -78,3 +81,40 @@ func _on_close_settings_pressed() -> void:
 
 func _on_exit_pressed() -> void:
 	get_tree().quit()
+
+func _setup_panel_styling() -> void:
+	# Make SetupPanel opaque with solid background
+	if setup_panel:
+		var panel_style = StyleBoxFlat.new()
+		panel_style.bg_color = Color(0.15, 0.15, 0.2, 0.98)  # Dark, almost opaque
+		panel_style.border_color = Color(0.4, 0.5, 0.7, 1.0)
+		panel_style.border_width_left = 2
+		panel_style.border_width_right = 2
+		panel_style.border_width_top = 2
+		panel_style.border_width_bottom = 2
+		panel_style.corner_radius_top_left = 8
+		panel_style.corner_radius_top_right = 8
+		panel_style.corner_radius_bottom_left = 8
+		panel_style.corner_radius_bottom_right = 8
+		setup_panel.add_theme_stylebox_override("panel", panel_style)
+	
+	# Make APIKeyInput opaque with solid background
+	if api_key_input:
+		var input_style = StyleBoxFlat.new()
+		input_style.bg_color = Color(0.2, 0.2, 0.25, 1.0)  # Solid dark background
+		input_style.border_color = Color(0.5, 0.5, 0.6, 1.0)
+		input_style.border_width_left = 1
+		input_style.border_width_right = 1
+		input_style.border_width_top = 1
+		input_style.border_width_bottom = 1
+		input_style.corner_radius_top_left = 4
+		input_style.corner_radius_top_right = 4
+		input_style.corner_radius_bottom_left = 4
+		input_style.corner_radius_bottom_right = 4
+		api_key_input.add_theme_stylebox_override("normal", input_style)
+		api_key_input.add_theme_stylebox_override("focus", input_style)
+		
+		# Ensure text is visible
+		api_key_input.add_theme_color_override("font_color", Color.WHITE)
+		api_key_input.add_theme_color_override("font_selected_color", Color.WHITE)
+		api_key_input.add_theme_color_override("font_placeholder_color", Color(0.7, 0.7, 0.7, 1.0))

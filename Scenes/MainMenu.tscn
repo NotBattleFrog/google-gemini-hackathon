@@ -64,7 +64,7 @@ text = "New Game"
 
 [node name="SettingsBtn" type="Button" parent="MenuContainer"]
 layout_mode = 2
-text = "Settings"
+text = "Add API Key"
 
 [node name="ExitBtn" type="Button" parent="MenuContainer"]
 layout_mode = 2

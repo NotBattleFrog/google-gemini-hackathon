@@ -399,25 +399,14 @@ func _initialize_character_state(unit: Node) -> void:
 	unit.soul.initialize_turn_based_state(goal, initial_knowledge)
 
 func _start_next_turn() -> void:
-	# Demo mode: no loops, just go through the 4 characters once
+	# Loop continuously through all characters
 	print("[TurnBasedGameState] _start_next_turn called: current_character_index=%d, turn_order.size()=%d" % [current_character_index, turn_order.size()])
 	
-	# Debug: Print turn order contents
-	print("[TurnBasedGameState] Turn order contents:")
-	for i in range(turn_order.size()):
-		var char = turn_order[i]
-		if char:
-			var name = "Unknown"
-			if "soul" in char and char.soul and char.soul.personality:
-				name = char.soul.personality.name
-			print("  [%d]: %s (name: %s)" % [i, char.name, name])
-		else:
-			print("  [%d]: NULL" % i)
-	
+	# If we've gone through all characters, loop back to the beginning
 	if current_character_index >= turn_order.size():
-		print("[TurnBasedGameState] All turns completed!")
-		all_turns_completed.emit()
-		return
+		current_character_index = 0
+		current_turn += 1
+		print("[TurnBasedGameState] === Starting Round %d (looping) ===" % current_turn)
 	
 	# Don't clear bubbles here - wait until we're ready to show the next one
 	# Bubbles will be cleared in _show_character_action() right before showing new content
