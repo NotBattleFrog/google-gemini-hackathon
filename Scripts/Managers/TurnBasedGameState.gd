@@ -104,8 +104,8 @@ func _initialize_turn_order() -> void:
 	var game_node = get_node_or_null("/root/Game")
 	if game_node:
 		print("[TurnBasedGameState] Game node found. Listing all children:")
-		for child in game_node.get_children():
-			print("  - %s (type: %s)" % [child.name, child.get_class()])
+		#for child in game_node.get_children():
+		#	print("  - %s (type: %s)" % [child.name, child.get_class()])
 		
 		# Try find_child first
 		player_node = game_node.find_child("Player", true, false)
@@ -145,10 +145,10 @@ func _initialize_turn_order() -> void:
 	else:
 		print("[TurnBasedGameState] ERROR: Could not find Player node at all!")
 		# List all children of Game node
-		if game_node:
-			print("[TurnBasedGameState] Game node children:")
-			for child in game_node.get_children():
-				print("  - %s (type: %s)" % [child.name, child.get_class()])
+		#if game_node:
+		#	print("[TurnBasedGameState] Game node children:")
+		#	for child in game_node.get_children():
+		#		print("  - %s (type: %s)" % [child.name, child.get_class()])
 	
 	# Log all units found
 	for i in range(units.size()):

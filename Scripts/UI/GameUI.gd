@@ -158,6 +158,11 @@ func _setup_api_key_panel() -> void:
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and event.keycode == KEY_K:
+		# Don't toggle API panel if player text input is active
+		var ghost_input = get_node_or_null("/root/Game/GhostActionInput")
+		if ghost_input and ghost_input.visible:
+			return
+		
 		print("[GameUI] K key pressed! Panel visible: %s, Panel exists: %s" % [api_key_panel.visible if api_key_panel else "null", api_key_panel != null])
 		if api_key_panel and api_key_panel.visible:
 			_on_close_api_key_panel()
@@ -177,8 +182,16 @@ func _on_save_api_key() -> void:
 	if key.length() > 0:
 		print("[GameUI] Saving API key (length: %d)" % key.length())
 		ConfigManager.save_api_key(key)
-		# LLMStreamService will read from ConfigManager automatically
-		api_key_status_label.text = "✓ API Key saved!"
+		
+		# Clear quota pause immediately when new key is saved
+		var llm_service = get_node_or_null("/root/LLMStreamService")
+		if llm_service:
+			llm_service.quota_paused = false
+			llm_service.quota_resume_timer = 0.0
+			llm_service.quota_error_message = ""
+			print("[GameUI] Cleared API quota pause - retrying immediately with new key")
+		
+		api_key_status_label.text = "✓ API Key saved! Retrying API calls..."
 		api_key_status_label.add_theme_color_override("font_color", Color(0.4, 1, 0.4, 1))
 		await get_tree().create_timer(1.5).timeout
 		_update_api_key_status()
