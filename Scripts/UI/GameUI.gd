@@ -7,6 +7,7 @@ var api_key_status_label: Label
 
 @onready var api_config_panel = $APIKeyPanel # Assuming APIKeyPanel is the node name created by _setup_api_key_panel()
 @onready var turn_counter_label = null  # Created dynamically
+var thinking_label: Label = null  # "X is thinking..." status message
 
 func _ready() -> void:
 	# Setup API Key Panel (still needed to create the panel)
@@ -15,6 +16,9 @@ func _ready() -> void:
 	
 	# Create turn counter label
 	_create_turn_counter_label()
+	
+	# Create thinking status label
+	_create_thinking_label()
 	
 	# Connect to TurnBasedGameState if available
 	await get_tree().process_frame
@@ -60,12 +64,50 @@ func _on_turn_counter_updated(turns_until_player: int, current_character: String
 	if turns_until_player == 0:
 		turn_counter_label.text = "YOUR TURN!"
 		turn_counter_label.add_theme_color_override("font_color", Color(0.3, 1.0, 0.3, 1.0))
+		show_thinking_message("")  # Hide thinking
 	elif turns_until_player == 1:
 		turn_counter_label.text = "Next: YOUR TURN (after %s)" % current_character
 		turn_counter_label.add_theme_color_override("font_color", Color(1.0, 1.0, 0.3, 1.0))
+		show_thinking_message("%s is thinking..." % current_character)
 	else:
 		turn_counter_label.text = "%d turns until your action (Now: %s)" % [turns_until_player, current_character]
 		turn_counter_label.add_theme_color_override("font_color", Color(0.9, 0.9, 1.0, 1.0))
+		show_thinking_message("%s is thinking..." % current_character)
+
+func _create_thinking_label() -> void:
+	thinking_label = Label.new()
+	thinking_label.name = "ThinkingLabel"
+	thinking_label.text = ""
+	thinking_label.visible = false
+	
+	# Position at bottom center
+	thinking_label.anchor_left = 0.5
+	thinking_label.anchor_top = 1.0
+	thinking_label.anchor_right = 0.5
+	thinking_label.anchor_bottom = 1.0
+	thinking_label.offset_left = -200
+	thinking_label.offset_top = -60
+	thinking_label.offset_right = 200
+	thinking_label.offset_bottom = -20
+	thinking_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	
+	# Styling - subtle but visible
+	thinking_label.add_theme_font_size_override("font_size", 18)
+	thinking_label.add_theme_color_override("font_color", Color(0.8, 0.8, 0.9, 0.9))
+	thinking_label.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 0.8))
+	thinking_label.add_theme_constant_override("outline_size", 3)
+	
+	add_child(thinking_label)
+
+func show_thinking_message(message: String) -> void:
+	if not thinking_label:
+		return
+	if message.is_empty():
+		thinking_label.visible = false
+		thinking_label.text = ""
+	else:
+		thinking_label.text = message
+		thinking_label.visible = true
 
 func _setup_api_key_panel() -> void:
 	# Create API Key Settings Panel

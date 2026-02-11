@@ -247,6 +247,11 @@ func _on_submit_pressed() -> void:
 	# Submit ghost action (call method dynamically)
 	if turn_based_state.has_method("submit_ghost_action"):
 		turn_based_state.submit_ghost_action(action_text, selected_character)
+		
+		# Show processing message
+		var game_ui = get_node_or_null("/root/Game/GameUI")
+		if game_ui and game_ui.has_method("show_thinking_message"):
+			game_ui.show_thinking_message("Processing your message...")
 	else:
 		status_label.text = "Error: submit_ghost_action method not found!"
 	
