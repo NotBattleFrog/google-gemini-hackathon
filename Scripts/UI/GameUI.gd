@@ -157,17 +157,27 @@ func _setup_api_key_panel() -> void:
 	_update_api_key_status()
 
 func _input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and event.keycode == KEY_K:
-		# Don't toggle API panel if player text input is active
-		var ghost_input = get_node_or_null("/root/Game/GhostActionInput")
-		if ghost_input and ghost_input.visible:
+	if event is InputEventKey and event.pressed:
+		# F11 - Toggle fullscreen
+		if event.keycode == KEY_F11:
+			if DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN:
+				DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+			else:
+				DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
 			return
 		
-		print("[GameUI] K key pressed! Panel visible: %s, Panel exists: %s" % [api_key_panel.visible if api_key_panel else "null", api_key_panel != null])
-		if api_key_panel and api_key_panel.visible:
-			_on_close_api_key_panel()
-		else:
-			_toggle_api_key_panel()
+		# K - Toggle API key panel
+		if event.keycode == KEY_K:
+			# Don't toggle API panel if player text input is active
+			var ghost_input = get_node_or_null("/root/Game/GhostActionInput")
+			if ghost_input and ghost_input.visible:
+				return
+			
+			print("[GameUI] K key pressed! Panel visible: %s, Panel exists: %s" % [api_key_panel.visible if api_key_panel else "null", api_key_panel != null])
+			if api_key_panel and api_key_panel.visible:
+				_on_close_api_key_panel()
+			else:
+				_toggle_api_key_panel()
 
 func _toggle_api_key_panel() -> void:
 	if api_key_panel:
