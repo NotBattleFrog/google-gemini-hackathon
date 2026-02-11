@@ -60,18 +60,24 @@ func _setup_character_list() -> void:
 	character_list.add_item("All Characters (Public)", 0)
 	
 	var units = get_tree().get_nodes_in_group("Units")
-	var npc_index = 1
+	var npc_units = []
 	for unit in units:
 		# Skip Somchai (player) - can't target yourself
 		if unit.soul and unit.soul.personality.name == "Somchai":
 			continue
+		npc_units.append(unit)
+
+	var npc_index = 1
+	for unit in npc_units:
 		if unit.soul:
 			var name = unit.soul.personality.name
 			character_list.add_item(name, npc_index)
 			npc_index += 1
 	
 	character_list.selected = 0
-	character_list.item_selected.connect(_on_character_selected)
+	# Only connect if not already connected
+	if not character_list.item_selected.is_connected(_on_character_selected):
+		character_list.item_selected.connect(_on_character_selected)
 
 func _on_character_selected(index: int) -> void:
 	if index == 0:

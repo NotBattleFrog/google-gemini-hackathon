@@ -21,8 +21,21 @@ var ghost_message_text: String = ""
 
 func _ready() -> void:
 	print("[MysteryManager] Initialized")
-	# Wait for units to spawn - use a longer delay to ensure units are ready
+	
+	# Wait for scene to load
 	await get_tree().create_timer(1.5).timeout
+	
+	# Skip setup if Game is in menu preview mode
+	var game = get_node_or_null("/root/Game")
+	if game and game.get("is_preview"):
+		print("[MysteryManager] Game is in preview mode - skipping setup")
+		return
+	
+	# Also skip if no Game scene at all (e.g. main menu)
+	if not game:
+		print("[MysteryManager] No Game scene found - skipping setup")
+		return
+	
 	call_deferred("_setup_mystery")
 
 func _setup_mystery() -> void:

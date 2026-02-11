@@ -19,8 +19,16 @@ var response_buffer: PackedByteArray
 var full_response_accumulator: String = ""
 var current_mode: String = "CHAT" # CHAT or LOGIC
 
+# API Quota Management
+var quota_paused: bool = false
+var quota_resume_timer: float = 0.0
+var quota_error_message: String = ""
+
 # Context Window (Sliding)
 var context_window: Array[Dictionary] = []
+
+# PERFORMANCE: Cache parsed JSON results
+var _json_parse_cache: Dictionary = {}
 
 func _ready() -> void:
 	client = HTTPClient.new()
@@ -92,6 +100,11 @@ func _process(delta: float) -> void:
 			print("[LLM DEBUG] Unexpected status: ", status)
 
 func request_inference(system_prompt: String, user_input: String, mode: String = "CHAT") -> void:
+	# Check if API calls are paused due to quota
+	if quota_paused:
+		print("[LLM DEBUG] API calls paused - quota exceeded. Resuming in %.0f seconds." % quota_resume_timer)
+		return
+	
 	# Always read API key from ConfigManager (single source of truth)
 	# Never use cached api_key variable - always read fresh from ConfigManager
 	var current_api_key = ConfigManager.api_key
@@ -193,14 +206,19 @@ func _parse_chunk(chunk: PackedByteArray) -> void:
 		if clean_text.is_empty(): return
 		
 		var json = JSON.parse_string(clean_text)
-		if json and "candidates" in json:
-			var candidates = json["candidates"]
-			if candidates.size() > 0:
-				var parts = candidates[0].get("content", {}).get("parts", [])
-				if parts.size() > 0:
-					var text = parts[0].get("text", "")
-					emit_signal("token_received", text)
-					full_response_accumulator += text
+		if json and json is Dictionary:
+			# Check for API errors in CHAT mode too
+			if json.has("error"):
+				_handle_api_error(json["error"])
+				return
+			if "candidates" in json:
+				var candidates = json["candidates"]
+				if candidates.size() > 0:
+					var parts = candidates[0].get("content", {}).get("parts", [])
+					if parts.size() > 0:
+						var text = parts[0].get("text", "")
+						emit_signal("token_received", text)
+						full_response_accumulator += text
 					 
 	elif current_mode == "LOGIC":
 		# Buffer everything
@@ -231,6 +249,12 @@ func _parse_chunk(chunk: PackedByteArray) -> void:
 			if json.parse(json_array_str) == OK:
 				var chunks = json.data
 				if chunks is Array:
+					# Check for API errors FIRST before extracting text
+					for response_chunk in chunks:
+						if response_chunk is Dictionary and response_chunk.has("error"):
+							_handle_api_error(response_chunk["error"])
+							return
+					
 					# Concatenate all text parts from all chunks
 					var full_text = ""
 					for response_chunk in chunks:
@@ -246,15 +270,65 @@ func _parse_chunk(chunk: PackedByteArray) -> void:
 					# Remove markdown formatting if present
 					full_text = full_text.replace("```json", "").replace("```", "").strip_edges()
 					
-					var logic_json = JSON.new()
-					if logic_json.parse(full_text) == OK:
-						print("[LLM DEBUG] Logic JSON Parsed Successfully!")
-						emit_signal("logic_received", logic_json.data)
+					# PERFORMANCE: Use cached parse or parse new
+					var json_result = null
+					if _json_parse_cache.has(full_text):
+						json_result = _json_parse_cache[full_text]
 					else:
-						print("[LLM DEBUG] Logic Inner JSON Parse Error: ", logic_json.get_error_message())
+						json_result = JSON.parse_string(full_text)
+						if json_result != null:
+							_json_parse_cache[full_text] = json_result
+					
+					if json_result == null:
+						print("[LLM DEBUG] Logic Inner JSON Parse Error: Unknown error getting token")
 						print("[LLM DEBUG] Failed text: ", full_text)
+						return
+					
+					print("[LLM DEBUG] Logic JSON Parsed Successfully!")
+					emit_signal("logic_received", json_result)
 			else:
 				print("[LLM DEBUG] Logic Array Parse Error: ", json.get_error_message())
 
 func system_instruction(prompt: String) -> String:
 	return "System: " + prompt
+
+func _handle_api_error(error_data: Dictionary) -> void:
+	var error_code = error_data.get("code", 0)
+	var error_message = error_data.get("message", "Unknown API error")
+	var error_status = error_data.get("status", "UNKNOWN")
+	
+	if error_code == 429 or error_status == "RESOURCE_EXHAUSTED":
+		# Extract retry delay
+		var retry_seconds = 60
+		if error_data.has("details"):
+			for detail in error_data["details"]:
+				if detail.has("@type") and detail["@type"] == "type.googleapis.com/google.rpc.RetryInfo":
+					var retry_delay = detail.get("retryDelay", "60s")
+					retry_seconds = int(retry_delay.replace("s", "").split(".")[0])
+					break
+		
+		# Pause API calls
+		quota_paused = true
+		quota_resume_timer = retry_seconds
+		quota_error_message = "API quota exceeded. Retry in %d seconds." % retry_seconds
+		
+		# Show clear message
+		print("")
+		print("=".repeat(60))
+		print("  ⚠️  GEMINI API QUOTA EXCEEDED")
+		print("=".repeat(60))
+		print("  Retry in: %d seconds" % retry_seconds)
+		print("  Limit: 20 requests/day (free tier)")
+		print("  API calls are PAUSED until quota resets.")
+		print("  Upgrade: https://ai.google.dev/gemini-api/docs/rate-limits")
+		print("=".repeat(60))
+		print("")
+		
+		# Auto-resume after delay
+		if is_inside_tree():
+			await get_tree().create_timer(retry_seconds).timeout
+			quota_paused = false
+			quota_error_message = ""
+			print("[LLM] API quota timer expired - resuming API calls.")
+	else:
+		print("[LLM DEBUG] API Error %d (%s): %s" % [error_code, error_status, error_message])

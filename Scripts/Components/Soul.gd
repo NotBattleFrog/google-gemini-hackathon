@@ -27,7 +27,7 @@ const MAX_CONVERSATIONS_PER_PARTNER: int = 3
 
 const COOLDOWN_TIME: float = 15.0 # Seconds between chats
 const CONVERSATIONS_DIR = "user://npc_conversations/"
-const SAVE_DEBOUNCE_TIME: float = 2.0  # Batch saves every 2 seconds
+const SAVE_DEBOUNCE_TIME: float = 5.0  # PERFORMANCE: Batch saves every 5 seconds (reduced I/O)
 
 var unit_owner: Node = null  # Reference to the owning Unit
 

@@ -62,6 +62,7 @@ var name_label: Label = null
 
 var _last_debug_state: int = -1
 var _last_neighbor_count: int = -1
+var is_grounded: bool = false  # Performance: Track if character is on ground to skip gravity
 
 func _setup_cooldown_label() -> void:
 	name_label = Label.new()
@@ -81,18 +82,39 @@ func die() -> void:
 
 const BUBBLE_SCENE = preload("res://Scenes/UI/DialogueBubble.tscn")
 var current_bubble: Node = null  # Track current bubble for clearing
+# PERFORMANCE: Bubble pooling to reduce allocations
+var bubble_pool: Array[Node] = []
+const MAX_POOL_SIZE: int = 3
+
+func _get_pooled_bubble() -> Node:
+	# Try to reuse a bubble from the pool
+	if bubble_pool.size() > 0:
+		var bubble = bubble_pool.pop_back()
+		bubble.visible = true
+		return bubble
+	# Pool empty, create new one
+	return BUBBLE_SCENE.instantiate()
+
+func _return_bubble_to_pool(bubble: Node) -> void:
+	# Return bubble to pool instead of destroying
+	if bubble_pool.size() < MAX_POOL_SIZE:
+		bubble.visible = false
+		bubble_pool.append(bubble)
+	else:
+		bubble.queue_free()
 
 func clear_speech_bubbles() -> void:
-	# Remove all dialogue bubbles from this unit
+	# Return all dialogue bubbles to pool instead of destroying
 	for child in get_children():
 		if child is DialogueBubble or child.name == "DialogueBubble":
-			child.queue_free()
+			_return_bubble_to_pool(child)
+			remove_child(child)
 	current_bubble = null
 
 func talk(message: String, emotion: String = "NEUTRAL") -> void:
 	# Clear any existing bubbles first
 	clear_speech_bubbles()
-	var bubble = BUBBLE_SCENE.instantiate()
+	var bubble = _get_pooled_bubble()
 	add_child(bubble)
 	bubble.position = Vector2(0, -60) # Above head
 	bubble.speak(message, emotion)
@@ -101,7 +123,7 @@ func talk(message: String, emotion: String = "NEUTRAL") -> void:
 func show_thought(message: String) -> void:
 	# Clear any existing bubbles first
 	clear_speech_bubbles()
-	var bubble = BUBBLE_SCENE.instantiate()
+	var bubble = _get_pooled_bubble()
 	add_child(bubble)
 	bubble.position = Vector2(0, -60) # Above head
 	bubble.speak(message, "THOUGHT")  # Use thought style
@@ -111,7 +133,7 @@ func show_thought(message: String) -> void:
 func show_whisper(message: String, target_name: String = "") -> void:
 	# Clear any existing bubbles first
 	clear_speech_bubbles()
-	var bubble = BUBBLE_SCENE.instantiate()
+	var bubble = _get_pooled_bubble()
 	add_child(bubble)
 	bubble.position = Vector2(0, -60) # Above head
 	bubble.speak(message, "WHISPER")  # Use whisper style
@@ -134,33 +156,31 @@ func _physics_process(delta: float) -> void:
 		
 	match current_state:
 		State.IDLE:
+			# PERFORMANCE OPTIMIZATION: Skip physics if already grounded
+			if is_grounded:
+				# Character is stable on ground, no need for continuous physics
+				return
+			
 			# STATIC MODE: No movement, but apply gravity for collision
 			velocity.x = 0
 			velocity.y += 980 * delta # Gravity ensures they stay on floor
 			
 			move_and_slide()
 			
-			# If we're on the floor, stop falling
+			# If we're on the floor, mark as grounded to skip future physics
 			if is_on_floor():
 				velocity.y = 0
+				is_grounded = true  # Performance: Stop processing physics once grounded
 			
-			# Fallback: Query Area if we think we are alone
-			if nearby_units.is_empty():
-				var area = find_child("Area2D", false, false) # By type usually? No, I added it as child.
-				# Actually I didn't name it. Let's find by type or iteration.
-				for child in get_children():
-					if child is Area2D:
-						var bodies = child.get_overlapping_bodies()
-						for b in bodies:
-							if b is Unit and b != self and not b in nearby_units:
-								nearby_units.append(b)
-			
-			# Socialization check now handled by timer (every 5 seconds)
+			# REMOVED: Expensive fallback Area2D query - this was running every frame!
+			# nearby_units are now managed solely by Area2D signals which is much more efficient
 			
 		State.SOCIALIZING:
 			velocity.x = 0
 			velocity.y += 980 * delta
 			move_and_slide()
+			if is_on_floor():
+				velocity.y = 0
 			
 		State.COMBAT:
 			velocity.x = 0
