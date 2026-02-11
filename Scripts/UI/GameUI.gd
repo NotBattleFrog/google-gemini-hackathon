@@ -5,11 +5,67 @@ var api_key_panel: Panel
 var api_key_input: LineEdit
 var api_key_status_label: Label	
 
+@onready var api_config_panel = $APIKeyPanel # Assuming APIKeyPanel is the node name created by _setup_api_key_panel()
+@onready var turn_counter_label = null  # Created dynamically
+
 func _ready() -> void:
-	# Setup API Key Panel
+	# Setup API Key Panel (still needed to create the panel)
 	_setup_api_key_panel()
 	print("[GameUI] Ready - API key panel initialized")
+	
+	# Create turn counter label
+	_create_turn_counter_label()
+	
+	# Connect to TurnBasedGameState if available
+	await get_tree().process_frame
+	var tbs = get_node_or_null("/root/Game/TurnBasedGameState")
+	if tbs:
+		if tbs.has_signal("turn_counter_updated"):
+			tbs.turn_counter_updated.connect(_on_turn_counter_updated)
+			print("[GameUI] Connected to turn_counter_updated signal")
+	
+	# Hide API panel by default
+	if api_config_panel:
+		api_config_panel.visible = false
 
+func _create_turn_counter_label() -> void:
+	# Create a label at the top center of screen
+	turn_counter_label = Label.new()
+	turn_counter_label.name = "TurnCounterLabel"
+	turn_counter_label.text = "Waiting for game start..."
+	
+	# Position at top center
+	turn_counter_label.anchor_left = 0.5
+	turn_counter_label.anchor_top = 0.0
+	turn_counter_label.anchor_right = 0.5
+	turn_counter_label.anchor_bottom = 0.0
+	turn_counter_label.offset_left = -200
+	turn_counter_label.offset_top = 20
+	turn_counter_label.offset_right = 200
+	turn_counter_label.offset_bottom = 60
+	turn_counter_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	
+	# Styling
+	turn_counter_label.add_theme_font_size_override("font_size", 24)
+	turn_counter_label.add_theme_color_override("font_color", Color(0.9, 0.9, 1.0, 1.0))
+	turn_counter_label.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 0.8))
+	turn_counter_label.add_theme_constant_override("outline_size", 4)
+	
+	add_child(turn_counter_label)
+
+func _on_turn_counter_updated(turns_until_player: int, current_character: String) -> void:
+	if not turn_counter_label:
+		return
+	
+	if turns_until_player == 0:
+		turn_counter_label.text = "YOUR TURN!"
+		turn_counter_label.add_theme_color_override("font_color", Color(0.3, 1.0, 0.3, 1.0))
+	elif turns_until_player == 1:
+		turn_counter_label.text = "Next: YOUR TURN (after %s)" % current_character
+		turn_counter_label.add_theme_color_override("font_color", Color(1.0, 1.0, 0.3, 1.0))
+	else:
+		turn_counter_label.text = "%d turns until your action (Now: %s)" % [turns_until_player, current_character]
+		turn_counter_label.add_theme_color_override("font_color", Color(0.9, 0.9, 1.0, 1.0))
 
 func _setup_api_key_panel() -> void:
 	# Create API Key Settings Panel

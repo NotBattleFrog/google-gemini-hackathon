@@ -3,9 +3,10 @@ class_name TurnBasedGameState
 
 # Signals
 signal turn_started(turn_number: int, character: Node)
-signal turn_ended(turn_number: int, character: Node)
+signal turn_ended(character_name: String)
 signal all_turns_completed()
-signal ghost_action_requested()
+signal ghost_action_requested # Emitted when it's player (ghost) turn
+signal turn_counter_updated(turns_until_player: int, current_character: String) # NEW: Turn countdown
 
 # Configuration
 @export var max_turns: int = 2  # Configurable turn limit
@@ -406,36 +407,87 @@ func _start_next_turn() -> void:
 	if current_character_index >= turn_order.size():
 		current_character_index = 0
 		current_turn += 1
-		print("[TurnBasedGameState] === Starting Round %d (looping) ===" % current_turn)
+	# Check if demo sequence is complete
+	if current_character_index >= turn_order.size():
+		print("[TurnBasedGameState] === Demo Complete: All 4 characters acted once ===")
+		return
+	
+	var character = turn_order[current_character_index]
+	
+	# Validate character exists
+	if not is_instance_valid(character):
+		push_error("[TurnBasedGameState] Invalid character at index %d - character is null or freed" % current_character_index)
+		return
+	
+	# For player character, check if it's in Player group (soul might not be ready yet)
+	var is_player = character.is_in_group("Player")
+	
+	# Wait for soul if not ready (especially for player)
+	var character_name = "Unknown"
+	if not character.soul:
+		print("[TurnBasedGameState] Waiting for soul component for character at index %d..." % current_character_index)
+		await get_tree().process_frame
+		if not character.soul:
+			# If still no soul, use fallback behavior
+			if is_player:
+				character_name = "Somchai (Ghost)"
+				print("[TurnBasedGameState] Player turn but soul not initialized - using fallback name")
+			else:
+				push_error("[TurnBasedGameState] Invalid character at index %d - no soul component" % current_character_index)
+				return
+		else:
+			character_name = character.soul.personality.name
+	else:
+		character_name = character.soul.personality.name
+	
+	print("[TurnBasedGameState] === Character %d/%d: %s's Action ===" % [current_character_index + 1, turn_order.size(), character_name])
+	
+	# Calculate turns until player's turn
+	var turns_until_player = 0
+	var found_player = false
+	for i in range(current_character_index, turn_order.size()):
+		var unit = turn_order[i]
+		if unit.is_in_group("Player"):
+			turns_until_player = i - current_character_index
+			found_player = true
+			break
+	
+	# Emit turn counter update
+	emit_signal("turn_counter_updated", turns_until_player, character_name)
+	
+	# Check if this is Somchai (player) turn
+	var is_player_turn = character.is_in_group("Player")
+	var is_somchai = character_name == "Somchai"
+	print("[TurnBasedGameState] Character is Somchai: %s, is_player_turn: %s" % [is_somchai, is_player_turn])
 	
 	# Don't clear bubbles here - wait until we're ready to show the next one
 	# Bubbles will be cleared in _show_character_action() right before showing new content
 	
-	if current_character_index >= turn_order.size():
-		print("[TurnBasedGameState] ERROR: current_character_index (%d) >= turn_order.size() (%d)!" % [current_character_index, turn_order.size()])
-		return
+	# Original check for index >= turn_order.size() is now handled at the beginning
+	# if current_character_index >= turn_order.size():
+	# 	print("[TurnBasedGameState] ERROR: current_character_index (%d) >= turn_order.size() (%d)!" % [current_character_index, turn_order.size()])
+	# 	return
 	
-	var character = turn_order[current_character_index]
-	if not character:
-		push_error("Character at index %d is null!" % current_character_index)
-		print("[TurnBasedGameState] Turn order contents:")
-		for i in range(turn_order.size()):
-			print("  [%d]: %s" % [i, turn_order[i] if turn_order[i] else "NULL"])
-		return
-	if not character.soul:
-		push_error("Character at index %d has no soul!" % current_character_index)
-		print("[TurnBasedGameState] Character at index %d: %s (has soul: %s)" % [current_character_index, character.name, "soul" in character])
-		return
+	# Original character validation is now handled above
+	# if not character:
+	# 	push_error("Character at index %d is null!" % current_character_index)
+	# 	print("[TurnBasedGameState] Turn order contents:")
+	# 	for i in range(turn_order.size()):
+	# 		print("  [%d]: %s" % [i, turn_order[i] if turn_order[i] else "NULL"])
+	# 	return
+	# if not character.soul:
+	# 	push_error("Character at index %d has no soul!" % current_character_index)
+	# 	print("[TurnBasedGameState] Character at index %d: %s (has soul: %s)" % [current_character_index, character.name, "soul" in character])
+	# 	return
 	
 	# CHECK IF IT'S PLAYER'S TURN - MULTIPLE WAYS
-	var is_player_turn = false
-	if character.is_in_group("Player"):
-		is_player_turn = true
-		print("[TurnBasedGameState] DETECTED PLAYER BY GROUP")
-	elif current_character_index == 2:  # Player is at index 2 in demo
-		is_player_turn = true
-		print("[TurnBasedGameState] DETECTED PLAYER BY INDEX 2")
-	
+	# var is_player_turn = false # Already determined above
+	# if character.is_in_group("Player"):
+	# 	is_player_turn = true
+	# 	print("[TurnBasedGameState] DETECTED PLAYER BY GROUP")
+	# elif current_character_index == 2:  # Player is at index 2 in demo
+	# 	is_player_turn = true
+	# 	print("[TurnBasedGameState] DETECTED PLAYER BY INDEX 2")
 	var char_name = character.soul.personality.name if (character.soul and character.soul.personality) else "Unknown"
 	var turn_info = "Character %d/%d" % [current_character_index + 1, turn_order.size()]
 	print("[TurnBasedGameState] === %s: %s's Action ===" % [turn_info, char_name])
@@ -786,6 +838,10 @@ func _show_character_action(character: Node, action: Dictionary) -> void:
 	var text = action.get("text", "...")
 	var visibility = action.get("visibility", "public")
 	var target_name = action.get("target", "")
+	
+	# Ensure target_name is never null (convert null to empty string)
+	if target_name == null:
+		target_name = ""
 	
 	# Show speech bubble or thought bubble
 	if action_type == "thought":

@@ -6,6 +6,10 @@ var time_of_day: float = 6.0  # 0-24 hours (start at 6 AM)
 var day_night_speed: float = 0.05  # Game hours per real second (slower for testing)
 var is_preview: bool = false
 
+# PERFORMANCE: Cache sprite textures to avoid reloading
+var _sprite_cache: Dictionary = {}
+var _scale_cache: Dictionary = {}
+
 func _ready() -> void:
 	# Check if we are in a menu preview (SubViewport child)
 	var parent = get_parent()
@@ -221,18 +225,28 @@ func _setup_character_sprite(unit: Unit, sprite_filename: String) -> void:
 	if body_rect:
 		# Replace ColorRect with Sprite2D
 		var sprite = Sprite2D.new()
-		var texture = load("res://Assets/Characters/" + sprite_filename)
+		
+		# PERFORMANCE: Use cached texture and scale
+		var texture = null
+		var scale_factor = 1.0
+		
+		if _sprite_cache.has(sprite_filename):
+			texture = _sprite_cache[sprite_filename]
+			scale_factor = _scale_cache[sprite_filename]
+		else:
+			texture = load("res://Assets/Characters/" + sprite_filename)
+			if texture:
+				var tex_size = texture.get_size()
+				var target_height = 180.0
+				scale_factor = target_height / tex_size.y
+				# Cache for future use
+				_sprite_cache[sprite_filename] = texture
+				_scale_cache[sprite_filename] = scale_factor
+		
 		if texture:
 			sprite.texture = texture
 			# Position sprite at origin (0,0) relative to Visuals, centered
 			sprite.position = Vector2(0, 0)
-			# Get texture size and scale appropriately
-			var tex_size = texture.get_size()
-			# Scale sprite to reasonable size (adjust as needed)
-			# Character sprites should be visible but not too large
-			# Assuming characters should be around 150-200 pixels tall on screen
-			var target_height = 180.0
-			var scale_factor = target_height / tex_size.y
 			sprite.scale = Vector2(scale_factor, scale_factor)
 			sprite.name = "BodySprite"
 			sprite.z_index = 10  # Ensure characters are above background

@@ -246,13 +246,58 @@ func _parse_chunk(chunk: PackedByteArray) -> void:
 					# Remove markdown formatting if present
 					full_text = full_text.replace("```json", "").replace("```", "").strip_edges()
 					
-					var logic_json = JSON.new()
-					if logic_json.parse(full_text) == OK:
-						print("[LLM DEBUG] Logic JSON Parsed Successfully!")
-						emit_signal("logic_received", logic_json.data)
+					# PERFORMANCE: Use cached parse or parse new
+					var json_result = null
+					if _json_parse_cache.has(full_text):
+						json_result = _json_parse_cache[full_text]
 					else:
-						print("[LLM DEBUG] Logic Inner JSON Parse Error: ", logic_json.get_error_message())
+						json_result = JSON.parse_string(full_text)
+						if json_result != null:
+							_json_parse_cache[full_text] = json_result
+					
+					if json_result == null:
+						print("[LLM DEBUG] Logic Inner JSON Parse Error: Unknown error getting token")
 						print("[LLM DEBUG] Failed text: ", full_text)
+						return
+					
+					# Check if response contains an error
+					if json_result is Dictionary and json_result.has("error"):
+						var error_data = json_result["error"]
+						var error_code = error_data.get("code", 0)
+						var error_message = error_data.get("message", "Unknown error")
+						var error_status = error_data.get("status", "UNKNOWN")
+						
+						# Handle quota exceeded error specifically
+						if error_code == 429 or error_status == "RESOURCE_EXHAUSTED":
+							# Extract retry delay
+							var retry_seconds = 60  # Default
+							if error_data.has("details"):
+								for detail in error_data["details"]:
+									if detail.has("@type") and detail["@type"] == "type.googleapis.com/google.rpc.RetryInfo":
+										var retry_delay = detail.get("retryDelay", "60s")
+										# Parse delay like "47s" or "47.065183415s"
+										retry_seconds = int(retry_delay.replace("s", "").split(".")[0])
+										break
+							
+							# Show user-friendly error message
+							var quota_message = "⚠️ API Quota Exceeded!\n\nYou've reached the free tier limit (20 requests/day).\nPlease wait %d seconds before trying again.\n\nOr upgrade your API key at:\nhttps://ai.google.dev/gemini-api/docs/rate-limits" % retry_seconds
+							push_error(quota_message)
+							print("\n" + "=".repeat(60))
+							print("❌ GEMINI API QUOTA EXCEEDED")
+							print("=".repeat(60))
+							print("Retry in: %d seconds (%d minutes)" % [retry_seconds, retry_seconds / 60])
+							print("Limit: 20 requests per day (free tier)")
+							print("Upgrade at: https://ai.google.dev/gemini-api/docs/rate-limits")
+							print("=".repeat(60) + "\n")
+							return
+						else:
+							# Other API errors
+							push_error("API Error %d: %s" % [error_code, error_message])
+							print("[LLM DEBUG] API Error: ", json_result)
+							return
+					
+					print("[LLM DEBUG] Logic JSON Parsed Successfully!")
+					emit_signal("logic_received", json_result)
 			else:
 				print("[LLM DEBUG] Logic Array Parse Error: ", json.get_error_message())
 
